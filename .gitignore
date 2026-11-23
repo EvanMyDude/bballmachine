@@ -1,0 +1,6 @@
+# Reference screenshots of the original game: local tuning aid only, never published
+reference/
+Screenshot*.png
+node_modules/
+.DS_Store
+.playwright-mcp/

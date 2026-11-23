@@ -1,0 +1,101 @@
+:root {
+  --page: #0b0806;
+  --panel: rgba(12, 10, 8, 0.92);
+  --panel-text: #e9e3d6;
+  --accent: #f7941d;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--page);
+  overflow: hidden;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #1d140c 0%, var(--page) 70%);
+}
+
+#game {
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+/* developer tuning panel */
+#debug-panel {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  width: 330px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--panel-text);
+  font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
+  border: 1px solid #5a4a36;
+  border-radius: 6px;
+  padding: 8px 10px;
+  z-index: 10;
+}
+#debug-panel .dp-title {
+  color: var(--accent);
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+#debug-panel .dp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0;
+}
+#debug-panel .dp-group {
+  margin-top: 8px;
+  color: var(--accent);
+  border-top: 1px solid #3a3026;
+  padding-top: 4px;
+}
+#debug-panel .dp-slider {
+  display: grid;
+  grid-template-columns: 150px 1fr 46px;
+  gap: 4px;
+  align-items: center;
+}
+#debug-panel .dp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#debug-panel .dp-val {
+  text-align: right;
+}
+#debug-panel input[type='range'] {
+  width: 100%;
+}
+#debug-panel button,
+#debug-panel select {
+  background: #2a2119;
+  color: var(--panel-text);
+  border: 1px solid #5a4a36;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+#debug-panel .dp-out {
+  width: 100%;
+  box-sizing: border-box;
+  background: #000;
+  color: #9f9;
+  font: inherit;
+}
