@@ -13,6 +13,8 @@ export function drawDebug(ctx, rt, game, tr) {
   ctx.save();
   ctx.lineWidth = 2;
   ctx.font = '14px monospace';
+  ctx.textAlign = 'left'; // don't inherit alignment from the HUD / overlays
+  ctx.textBaseline = 'alphabetic';
 
   // tracks
   for (const { track } of Object.values(w.tracks)) {

@@ -11,7 +11,8 @@ All art, sound and code here are new. Backgrounds, wood, gears, pipes and the lo
 - **Click a backboard to shoot.** The ball flies *into* the screen and lands exactly where you clicked.
   - Land it just above a rim and it drops through.
   - Land it on empty background and it sails behind the machine.
-- **Moving hoops:** lead them. The throw takes ~0.6 s.
+- **One ball at a time.** Your next throw unlocks the instant the current ball is completely out of view (dropped out the bottom, knocked off a side, or a miss faded away behind the machine). The **READY** lamp at the bottom left lights up the moment you can throw. Clicking early flashes it red and does nothing.
+- **Moving hoops:** lead them. The throw takes ~0.6 s. Hoops move a little faster on each new machine.
 - **Stacked hoops:** after a basket the ball falls straight down. A hoop lined up underneath gives **DOUBLE! +50**, and a third gives **TRIPLE! +100**.
 - Each basket is worth 2 points. Get **NEEDED** to 0 before **TIME** runs out. The level always plays out its full timer, and the score carries over between levels.
 - `M` toggles sound (or use the speaker icon at the bottom right).
@@ -36,7 +37,8 @@ Nothing about the original's mechanics survives online beyond a Cutting Room Flo
 
 **Unknown, so chosen and kept tunable**
 - Level length: 60 s.
-- Hoop speeds and loop directions.
+- Hoop speeds (ramped up each level) and loop directions.
+- Throw pacing. A design choice, not from the screenshots: one ball at a time, the next unlocked the moment the last is out of view (`flight.oneBallAtATime`).
 - Whether a triple pays 50+100 or 100 total. Default: cumulative; switch with `scoring.bonusMode`.
 - Failure flow: Try Again / Start Over.
 - What follows level 8: a victory screen.
@@ -52,6 +54,7 @@ Nothing about the original's mechanics survives online beyond a Cutting Room Flo
   - A basket counts only when the ball's centre crosses the rim line *downward relative to the hoop*, inside the opening.
   - Each hoop scores at most once per ball, and a ball that came up through a hoop can never score in it.
   - A net funnel centres a scored ball so it exits straight down, which is what makes stacked hoops chain.
+- **One ball at a time** (`shotBlocker` in `src/game/world.js`): a throw is refused while any ball is still in the world. A ball is removed in the exact physics sub-step where it is fully out of view, so the next throw is available on the very next step. A ball balanced dead-centre on a rim end is tipped off, and a lifetime cap guarantees a ball can never lock you out.
 - **Movers** (`src/game/paths.js`): pure functions of level time along polyline tracks, in `loop` or `pingpong` mode with end pauses. They are exactly reproducible at any framerate.
 
 ## Tuning
@@ -64,13 +67,13 @@ Open the game with `?debug=1`, or press `` ` `` (backtick) in game, for:
 - a reference-screenshot overlay (local only);
 - "Copy JSON" to export tuned values.
 
-`node scripts/bot.mjs [interval]` plays every level with an ideal aimer and reports points vs target. It's a quick balance check after changing speeds or targets.
+`node scripts/bot.mjs` plays every level under the real rules with three simulated players and reports points per level vs the target: *ideal* (perfect and instant), *skilled*, and *casual* (reaction delay, aim and timing error, doesn't always plan combos). `--speed=1.5` scales every hoop speed, and `--ci` only checks that the ideal player clears every level (this runs in CI). Use it as a quick balance check after changing speeds or targets.
 
 ## Development
 
 ```sh
-npm test            # node --test: physics, scoring, game flow, framerate determinism
-npm run serve       # python3 -m http.server 8123 -> http://localhost:8123/?debug=1
+npm test            # node --test: physics, one-ball rule, scoring, game flow, framerate determinism
+npm run serve       # no-cache dev server -> http://localhost:8123/?debug=1
 ```
 
 There are no dependencies and no build step: plain ES modules + Canvas 2D + Web Audio. Levels are data in `src/levels.js`, with coordinates in the 1584×1080 stage space of the reference screenshots.
@@ -87,4 +90,4 @@ tests/               node:test suites
 
 ## Deployment
 
-Every push to `main` runs `.github/workflows/pages.yml`: unit tests, then the bot balance check, then a deploy of `index.html`, `styles.css` and `src/` to GitHub Pages. (Repo setting: *Settings → Pages → Source: GitHub Actions*.)
+Every push to `main` runs `.github/workflows/pages.yml`: unit tests, then the bot balance check (`--ci`), then a deploy of `index.html`, `styles.css` and `src/` to GitHub Pages. (Repo setting: *Settings → Pages → Source: GitHub Actions*.)

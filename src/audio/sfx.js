@@ -117,6 +117,19 @@ export const sfx = {
       tone('triangle', f * 2, t + i * 0.07, 0.1, 0.06);
     });
   },
+  // clicked while the ball is still in play: a soft, dull clunk
+  dud() {
+    if (!ok()) return;
+    const t = ac.currentTime;
+    tone('triangle', 180, t, 0.07, 0.16, { to: 120 });
+    noise(t, 0.04, 0.08, { type: 'lowpass', freq: 500 });
+  },
+  // a fresh ball is ready: tiny, quiet tick so it never gets tiresome
+  ready() {
+    if (!ok()) return;
+    const t = ac.currentTime;
+    tone('sine', 1560, t, 0.035, 0.035);
+  },
   miss() {
     if (!ok()) return;
     const t = ac.currentTime;
@@ -172,6 +185,12 @@ export function audioEvent(e) {
       break;
     case 'miss':
       sfx.miss();
+      break;
+    case 'dud':
+      sfx.dud();
+      break;
+    case 'ready':
+      sfx.ready();
       break;
     case 'tick':
       sfx.tick(e.seconds);

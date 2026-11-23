@@ -11,7 +11,8 @@
 // Evidence notes (see README "Reconstruction notes"):
 //  - L1 150 and L2 400 come straight from the HUD (score+needed, bar fill).
 //  - L3-L8 targets are read from partly blurred HUD digits; treat as tunable.
-//  - Speeds and directions are not recoverable from stills; tuned by feel.
+//  - Speeds and directions are not recoverable from stills. Tuned by feel, and
+//    ramped up level by level so later machines need sharper timing.
 
 const BOARD_HALF_H = 83;
 const STOP_CLEAR = 15; // half thickness of a bumper
@@ -31,7 +32,7 @@ export const LEVELS = [
     tracks: {
       U: {
         mode: 'pingpong',
-        speed: 150,
+        speed: 160,
         pause: 0.2,
         points: [[292, 348 + STOP_CLEAR + BOARD_HALF_H], [292, 910], [492, 910], [492, 348 + STOP_CLEAR + BOARD_HALF_H]],
       },
@@ -57,7 +58,7 @@ export const LEVELS = [
     tracks: {
       L: {
         mode: 'pingpong',
-        speed: 150,
+        speed: 165,
         pause: 0.2,
         points: [[55 + STOP_CLEAR + 98, 400], [690, 400], [690, 790 - STOP_CLEAR - BOARD_HALF_H]],
       },
@@ -86,7 +87,7 @@ export const LEVELS = [
     tracks: {
       A: {
         mode: 'loop',
-        speed: 115,
+        speed: 135,
         points: [[490, 230], [1090, 230], [1090, 745], [690, 745], [690, 910], [295, 910], [295, 400], [490, 400]],
       },
     },
@@ -113,7 +114,7 @@ export const LEVELS = [
     tracks: {
       A: {
         mode: 'loop',
-        speed: 115,
+        speed: 140,
         points: [[295, 400], [690, 400], [690, 740], [890, 740], [890, 400], [1290, 400], [1290, 910], [295, 910]],
       },
     },
@@ -143,7 +144,7 @@ export const LEVELS = [
     tracks: {
       A: {
         mode: 'loop',
-        speed: 110,
+        speed: 145,
         points: [[95, 230], [495, 230], [495, 565], [890, 565], [890, 230], [1490, 230], [1490, 910], [95, 910]],
       },
     },
@@ -171,13 +172,13 @@ export const LEVELS = [
     tracks: {
       A: {
         mode: 'pingpong',
-        speed: 140,
+        speed: 165,
         pause: 0.2,
         points: [[690, 790 - STOP_CLEAR - BOARD_HALF_H], [690, 400], [495, 400], [495, 570], [95, 570], [95, 910], [690, 910]],
       },
       B: {
         mode: 'loop',
-        speed: 115,
+        speed: 150,
         points: [[890, 910], [890, 400], [1090, 400], [1090, 570], [1490, 570], [1490, 910]],
       },
     },
@@ -209,9 +210,9 @@ export const LEVELS = [
       { x: 1290, y: 345, orient: 'h' },
     ],
     tracks: {
-      L: { mode: 'pingpong', speed: 135, pause: 0.25, points: [[295, 345 + STOP_CLEAR + BOARD_HALF_H], [295, 910]] },
-      M: { mode: 'pingpong', speed: 135, pause: 0.25, points: [[695, 345 + STOP_CLEAR + BOARD_HALF_H], [695, 910]] },
-      R: { mode: 'pingpong', speed: 135, pause: 0.25, points: [[1290, 345 + STOP_CLEAR + BOARD_HALF_H], [1290, 910]] },
+      L: { mode: 'pingpong', speed: 175, pause: 0.25, points: [[295, 345 + STOP_CLEAR + BOARD_HALF_H], [295, 910]] },
+      M: { mode: 'pingpong', speed: 175, pause: 0.25, points: [[695, 345 + STOP_CLEAR + BOARD_HALF_H], [695, 910]] },
+      R: { mode: 'pingpong', speed: 175, pause: 0.25, points: [[1290, 345 + STOP_CLEAR + BOARD_HALF_H], [1290, 910]] },
     },
     hoops: [
       { at: [295, 228] },
@@ -245,8 +246,8 @@ export const LEVELS = [
       { x: 1050, y: 910, orient: 'v' },
     ],
     tracks: {
-      TOP: { mode: 'pingpong', speed: 120, pause: 0.25, points: [[850 + STOP_CLEAR + 98, 230], [1325 - STOP_CLEAR - 98, 230]] },
-      LOW: { mode: 'loop', speed: 110, points: [[490, 570], [890, 570], [890, 910], [490, 910]] },
+      TOP: { mode: 'pingpong', speed: 185, pause: 0.25, points: [[850 + STOP_CLEAR + 98, 230], [1325 - STOP_CLEAR - 98, 230]] },
+      LOW: { mode: 'loop', speed: 155, points: [[490, 570], [890, 570], [890, 910], [490, 910]] },
     },
     hoops: [
       { at: [492, 400] },

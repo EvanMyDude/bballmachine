@@ -26,6 +26,7 @@ export function defaultConfig() {
       maxSpeed: 2600,
       airDrag: 0.15, // per second, proportional
       maxSubstepTravel: 0.25, // fraction of radius per substep (anti-tunnelling)
+      maxLifetime: 10, // safety: a ball that somehow never leaves is removed after this
     },
 
     // The throw: ball leaves the camera at the cursor, arcs up while shrinking
@@ -35,17 +36,21 @@ export function defaultConfig() {
       startScale: 3.1,
       arcHeight: 175,
       arrivalVyFactor: 0.32, // fraction of the arc's screen-space fall speed kept on landing
-      cooldown: 0.26,
-      maxLiveBalls: 3,
+      // ONE BALL AT A TIME: the next throw unlocks the instant the current ball
+      // is completely out of view (dropped below the playfield, off a side, or
+      // a miss that has faded away behind the machine).
+      oneBallAtATime: true,
+      cooldown: 0, // optional extra delay after a throw (seconds)
+      maxLiveBalls: 3, // only used when oneBallAtATime is false
       boardCatchMargin: 4, // px of forgiveness around a backboard's edge
       arrivalRimGrace: 12, // landing up to this far below the rim line still counts as "above"
     },
 
     // A shot that lands on empty background sails behind the machine.
     miss: {
-      duration: 0.75,
-      endScale: 0.55,
-      gravity: 700,
+      duration: 0.55,
+      endScale: 0.5,
+      gravity: 1100,
       darken: 0.6,
     },
 

@@ -225,6 +225,56 @@ export function drawFooter(ctx, muted) {
 
 export const SOUND_BUTTON = { x: STAGE.W - 70, y: STAGE.PLAY_BOTTOM + 20, w: 52, h: 46 };
 
+// Ball-ready lamp in the bottom strip, right where balls drop out of view.
+//   lamp.state: 'ready' | 'busy' | 'off'
+//   lamp.pop:   0..1 burst when a ball becomes available
+//   lamp.dud:   0..1 red flash when the player clicked too early
+export function drawReadyLamp(ctx, lamp) {
+  const x = 62;
+  const y = STAGE.PLAY_BOTTOM + 43;
+  const r = 25;
+  ctx.save();
+  // socket
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath();
+  ctx.roundRect(x - r - 12, y - r - 8, 196, 2 * r + 16, 12);
+  ctx.fill();
+  ctx.strokeStyle = lamp.dud > 0 ? `rgba(255,60,30,${0.5 + lamp.dud * 0.5})` : 'rgba(140,105,60,0.8)';
+  ctx.lineWidth = 2 + lamp.dud * 3;
+  ctx.stroke();
+
+  const ready = lamp.state === 'ready';
+  if (ready && lamp.pop > 0) {
+    const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * (1.4 + lamp.pop));
+    g.addColorStop(0, `rgba(255,200,80,${0.55 * lamp.pop})`);
+    g.addColorStop(1, 'rgba(255,200,80,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r * (1.4 + lamp.pop), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const s = ready ? 1 + 0.18 * lamp.pop : 0.92;
+  drawBall(ctx, x, y, r * s, -0.4, ready ? 0 : 0.72, 1);
+  if (lamp.dud > 0) {
+    ctx.fillStyle = `rgba(255,40,20,${0.45 * lamp.dud})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.font = `34px ${FONT.display}`;
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#000';
+  const label = ready ? 'READY' : lamp.state === 'busy' ? 'IN PLAY' : '';
+  if (label) {
+    ctx.strokeText(label, x + r + 14, y + 12);
+    ctx.fillStyle = ready ? '#c9e63b' : lamp.dud > 0 ? '#ff6a4a' : '#8a8172';
+    ctx.fillText(label, x + r + 14, y + 12);
+  }
+  ctx.restore();
+}
+
 // ---------- overlay screens ----------
 function shadowText(ctx, text, x, y, size, fill, { stroke = '#1a0d00', font = FONT.display, lw = 8 } = {}) {
   ctx.font = `${size}px ${font}`;
@@ -268,16 +318,20 @@ export function drawOverlay(ctx, game, pointer, now) {
     drawPipeFrame(ctx, 352, 196, 880, 740, 50);
     ctx.fillStyle = 'rgba(10,6,2,0.72)';
     ctx.fillRect(402, 246, 780, 640);
-    drawLogo(ctx, cx + 70, 360, 1.35);
-    shadowText(ctx, 'Click a backboard to shoot.', cx, 520, 40, '#fff', { font: FONT.body, lw: 6 });
-    shadowText(ctx, 'Drop one ball through stacked hoops:', cx, 576, 34, '#fff', { font: FONT.body, lw: 6 });
-    shadowText(ctx, 'DOUBLE  +50     TRIPLE  +100', cx, 642, 54, COLORS.yellowText);
-    shadowText(ctx, 'Beat NEEDED before TIME runs out.', cx, 702, 34, '#fff', { font: FONT.body, lw: 6 });
+    drawLogo(ctx, cx + 64, 322, 1.25);
+    shadowText(ctx, 'Click a backboard to shoot.', cx, 506, 40, '#fff', { font: FONT.body, lw: 6 });
+    shadowText(ctx, 'One ball at a time: the next is READY once it drops out.', cx, 552, 27, '#c9e63b', {
+      font: FONT.body,
+      lw: 5,
+    });
+    shadowText(ctx, 'Drop one ball through stacked hoops:', cx, 606, 32, '#fff', { font: FONT.body, lw: 6 });
+    shadowText(ctx, 'DOUBLE  +50     TRIPLE  +100', cx, 668, 54, COLORS.yellowText);
+    shadowText(ctx, 'Beat NEEDED before TIME runs out.', cx, 722, 32, '#fff', { font: FONT.body, lw: 6 });
     const pulse = 0.75 + 0.25 * Math.sin(now * 5);
     ctx.globalAlpha = pulse;
-    shadowText(ctx, 'CLICK TO START', cx, 806, 66, '#ff9a2e');
+    shadowText(ctx, 'CLICK TO START', cx, 812, 66, '#ff9a2e');
     ctx.globalAlpha = 1;
-    if (game.best > 0) shadowText(ctx, `BEST ${game.best}`, cx, 858, 30, '#c9d22c', { lw: 5 });
+    if (game.best > 0) shadowText(ctx, `BEST ${game.best}`, cx, 862, 30, '#c9d22c', { lw: 5 });
     return;
   }
 

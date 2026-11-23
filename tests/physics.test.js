@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cfg, level, dropBall, run, createWorld } from './helpers.js';
 import { shoot, boardAt } from '../src/game/world.js';
+import { STAGE } from '../src/config.js';
 
 const baskets = (ev) => ev.filter((e) => e.type === 'basket');
 
@@ -156,12 +157,104 @@ test('throw: click above a rim lands on the board and scores; empty space is a m
   assert.equal(baskets(ev).length, 0);
 });
 
-test('shot cooldown and live-ball cap are enforced', () => {
+// ---------- one ball at a time ----------
+
+// Step until the world has no balls; return how many steps that took and
+// whether a throw was ever accepted while the ball was still visible.
+function stepUntilClear(w, c, maxSteps = 2000) {
+  const events = [];
+  for (let i = 0; i < maxSteps; i++) {
+    const b = w.balls[0];
+    if (!b) return { steps: i, events };
+    const r = c.ball.radius * b.scale;
+    const visible =
+      b.phase === 'flight' ||
+      (b.y - r < STAGE.PLAY_BOTTOM && b.x + r > 0 && b.x - r < STAGE.W && (b.alpha ?? 1) > 0);
+    assert.ok(visible, `ball ${b.phase} still listed after leaving view (y=${b.y.toFixed(1)})`);
+    assert.equal(shoot(w, 300, 500), null, `throw accepted while a ${b.phase} ball is on screen`);
+    events.push(...run(w, 1 / 120));
+  }
+  throw new Error('ball never left the screen');
+}
+
+test('one ball at a time: throws are refused until the ball has dropped out of view', () => {
+  const c = cfg();
+  const w = createWorld(level([{ at: [500, 400] }, { at: [500, 570] }]), c);
+  assert.ok(shoot(w, 500, 370));
+  const { events } = stepUntilClear(w, c);
+  assert.equal(events.filter((e) => e.type === 'basket').length, 2, 'sanity: it was a double');
+  // and the instant it is gone, the very next throw is accepted
+  assert.ok(shoot(w, 500, 370), 'throw should be available immediately');
+});
+
+test('the ball disappears on the exact step it is fully below the playfield', () => {
+  const c = cfg();
+  const w = createWorld(level([{ at: [500, 400] }]), c);
+  const b = dropBall(w, 900, STAGE.PLAY_BOTTOM - 200, 0, 600);
+  let lastVisibleTop = -Infinity;
+  for (let i = 0; i < 400 && w.balls.length; i++) {
+    lastVisibleTop = b.y - c.ball.radius;
+    run(w, 1 / 120);
+  }
+  assert.equal(w.balls.length, 0);
+  assert.ok(lastVisibleTop < STAGE.PLAY_BOTTOM, 'it was visible on the step before');
+  assert.ok(b.y - c.ball.radius >= STAGE.PLAY_BOTTOM, 'removed only once fully hidden');
+});
+
+test('refused throws emit a dud event; clicks on the HUD are silently ignored', () => {
   const c = cfg();
   const w = createWorld(level([{ at: [500, 400] }]), c);
   assert.ok(shoot(w, 500, 360));
-  assert.equal(shoot(w, 500, 360), null, 'cooldown');
-  run(w, c.flight.cooldown + 0.01);
+  w.events.length = 0;
+  assert.equal(shoot(w, 500, 360), null);
+  assert.equal(w.events.filter((e) => e.type === 'dud').length, 1);
+  w.events.length = 0;
+  stepUntilClear(w, c);
+  assert.equal(shoot(w, 500, 50), null, 'HUD click');
+  assert.equal(w.events.filter((e) => e.type === 'dud').length, 0);
+});
+
+test('a miss blocks the next throw only until it has faded / dropped from view', () => {
+  const c = cfg();
+  const w = createWorld(level([{ at: [500, 400] }]), c);
+  assert.ok(shoot(w, 1100, 500)); // empty background
+  const { steps, events } = stepUntilClear(w, c);
+  const seconds = steps / 120;
+  assert.ok(seconds <= c.flight.duration + c.miss.duration + 0.02, `miss took ${seconds}s`);
+  assert.ok(events.some((e) => e.type === 'miss'));
+  assert.ok(events.some((e) => e.type === 'ready'));
   assert.ok(shoot(w, 500, 360));
-  assert.equal(shoot(w, 500, 50), null, 'clicks on the HUD are ignored');
+});
+
+test('a ball landing dead-centre on a rim end never balances there forever', () => {
+  const c = cfg();
+  for (const side of [-1, 1]) {
+    const w = createWorld(level([{ at: [500, 400] }]), c);
+    dropBall(w, 500 + side * c.hoop.rimHalfWidth, 300);
+    run(w, 3);
+    assert.equal(w.balls.length, 0, `ball stuck on the ${side < 0 ? 'left' : 'right'} rim end`);
+  }
+});
+
+test('a ball knocked off the side of the screen is gone once fully past the edge', () => {
+  const c = cfg();
+  const w = createWorld(level([{ at: [500, 400] }]), c);
+  const b = dropBall(w, STAGE.W - 60, 300, 900, -200);
+  run(w, 1);
+  assert.equal(w.balls.length, 0);
+  assert.ok(b.x - c.ball.radius >= STAGE.W);
+});
+
+test('with oneBallAtATime off, the old cap + cooldown still work (tuning option)', () => {
+  const c = cfg();
+  c.flight.oneBallAtATime = false;
+  c.flight.cooldown = 0.25;
+  c.flight.maxLiveBalls = 2;
+  const w = createWorld(level([{ at: [500, 400] }]), c);
+  assert.ok(shoot(w, 500, 360));
+  assert.equal(shoot(w, 500, 360), null, 'cooldown');
+  run(w, 0.26);
+  assert.ok(shoot(w, 500, 360));
+  run(w, 0.26);
+  assert.equal(shoot(w, 500, 360), null, 'cap');
 });

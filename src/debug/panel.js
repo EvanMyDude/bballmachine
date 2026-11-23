@@ -12,7 +12,7 @@ const SLIDERS = [
   ['', 'flight.startScale', 1.2, 4.5, 0.05],
   ['', 'flight.arcHeight', 0, 400, 5],
   ['', 'flight.arrivalVyFactor', 0, 1, 0.02],
-  ['', 'flight.cooldown', 0, 1, 0.02],
+  ['', 'flight.cooldown', 0, 1.5, 0.02],
   ['', 'flight.maxLiveBalls', 1, 8, 1],
   ['', 'flight.boardCatchMargin', 0, 40, 1],
   ['', 'flight.arrivalRimGrace', 0, 30, 1],
@@ -81,6 +81,13 @@ export function mountPanel(el, rt, api) {
   });
   ctl2.append(refOp);
   el.append(ctl2);
+
+  const one = h('input', {
+    type: 'checkbox',
+    checked: cfg.flight.oneBallAtATime,
+    onchange: () => (cfg.flight.oneBallAtATime = one.checked),
+  });
+  el.append(h('div', { className: 'dp-row' }, h('label', {}, one, ' one ball at a time (next throw when it leaves the screen)')));
 
   const ctl3 = h('div', { className: 'dp-row' });
   ctl3.append(h('button', { textContent: '+10s', onclick: () => api.addTime(10) }));

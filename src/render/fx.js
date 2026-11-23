@@ -4,10 +4,13 @@
 import { FONT, COLORS } from './draw.js';
 
 export function createFx() {
-  return { popups: [], sparks: [], scoreFlash: 0 };
+  return { popups: [], sparks: [], scoreFlash: 0, readyPop: 0, dud: 0 };
 }
 
 export function fxEvent(fx, e) {
+  if (e.type === 'ready') fx.readyPop = 1;
+  if (e.type === 'dud') fx.dud = 1;
+  if (e.type === 'levelStart') fx.readyPop = 1;
   if (e.type === 'basket') {
     fx.scoreFlash = 1;
     if (e.label) {
@@ -24,6 +27,8 @@ export function fxEvent(fx, e) {
 
 export function updateFx(fx, dt) {
   fx.scoreFlash = Math.max(0, fx.scoreFlash - dt * 3);
+  fx.readyPop = Math.max(0, fx.readyPop - dt * 3.2);
+  fx.dud = Math.max(0, fx.dud - dt * 3.5);
   for (const p of fx.popups) p.t += dt;
   fx.popups = fx.popups.filter((p) => p.t < p.life);
   for (const s of fx.sparks) {

@@ -3,10 +3,10 @@ import { LEVELS } from './levels.js';
 import { createGame, update, drainGameEvents, startLevel, needed, levelPoints } from './game/state.js';
 import { createLoop } from './game/loop.js';
 import { hoopPose, createHoops } from './game/hoop.js';
-import { shoot } from './game/world.js';
+import { shoot, shotReady } from './game/world.js';
 import { backgroundFor, makeCanvas } from './render/textures.js';
 import { drawRail, drawStop, drawBoard, drawRimBack, drawNet, drawRimFront, drawBall, drawTutorialPanel } from './render/draw.js';
-import { drawHud, drawFooter, drawOverlay, SOUND_BUTTON } from './render/hud.js';
+import { drawHud, drawFooter, drawOverlay, drawReadyLamp, SOUND_BUTTON } from './render/hud.js';
 import { createFx, fxEvent, updateFx, drawFx } from './render/fx.js';
 import { initAudio, audioEvent, setMuted, isMuted, setVolume } from './audio/sfx.js';
 import { drawDebug } from './debug/overlay.js';
@@ -205,6 +205,7 @@ window.__game = {
       levelPoints: levelPoints(game),
       timeLeft: +game.timeLeft.toFixed(2),
       balls: game.world.balls.map((b) => ({ id: b.id, phase: b.phase, chain: b.chain })),
+      ready: game.phase === 'playing' && shotReady(game.world),
     };
   },
   jumpLevel: (n) => api.jumpLevel(n),
@@ -271,6 +272,11 @@ function render(now) {
   ctx.restore();
 
   drawFooter(ctx, isMuted());
+  drawReadyLamp(ctx, {
+    state: game.phase === 'playing' ? (shotReady(world) ? 'ready' : 'busy') : 'off',
+    pop: fx.readyPop,
+    dud: fx.dud,
+  });
   drawHud(ctx, game, fx, now / 1000);
 
   // balls in flight are closest to the camera: on top of everything

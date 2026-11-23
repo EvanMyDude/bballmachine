@@ -31,16 +31,33 @@ export function liveBallCount(world) {
   return world.balls.filter((b) => b.phase === 'flight' || b.phase === 'plane').length;
 }
 
-export function canShoot(world, x, y) {
+// Why a throw would be refused right now (null = good to go).
+//   'outside' clicked on the HUD / footer, not the playfield
+//   'busy'    the previous ball is still on screen
+//   'cooldown' optional extra delay after a throw (off by default)
+export function shotBlocker(world, x, y) {
   const f = world.cfg.flight;
-  if (y < STAGE.PLAY_TOP || y > STAGE.PLAY_BOTTOM) return false;
-  if (world.t - world.lastShotT < f.cooldown) return false;
-  if (liveBallCount(world) >= f.maxLiveBalls) return false;
-  return true;
+  if (y < STAGE.PLAY_TOP || y > STAGE.PLAY_BOTTOM) return 'outside';
+  if (f.oneBallAtATime ? world.balls.length > 0 : liveBallCount(world) >= f.maxLiveBalls) return 'busy';
+  if (world.t - world.lastShotT < f.cooldown) return 'cooldown';
+  return null;
+}
+
+export function canShoot(world, x, y) {
+  return shotBlocker(world, x, y) === null;
+}
+
+// Is a throw available (ignoring where the player clicks)?
+export function shotReady(world) {
+  return shotBlocker(world, STAGE.W / 2, (STAGE.PLAY_TOP + STAGE.PLAY_BOTTOM) / 2) === null;
 }
 
 export function shoot(world, x, y) {
-  if (!canShoot(world, x, y)) return null;
+  const why = shotBlocker(world, x, y);
+  if (why) {
+    if (why !== 'outside') world.events.push({ type: 'dud', why, x, y });
+    return null;
+  }
   const f = world.cfg.flight;
   const ball = {
     id: world.nextBallId++,
@@ -164,10 +181,18 @@ export function stepWorld(world, dt) {
       ball.scale = 1 - (1 - m.endScale) * u;
       ball.shade = m.darken * Math.min(1, u * 2);
       ball.alpha = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
-      if (u >= 1) ball.phase = 'dead';
+      // gone once fully faded or fully below the visible playfield
+      const r = world.cfg.ball.radius * ball.scale;
+      if (u >= 1 || ball.y - r >= STAGE.PLAY_BOTTOM) {
+        ball.phase = 'dead';
+        emit({ type: 'ballDone', ballId: ball.id, chain: 0 });
+      }
     }
   }
+  const before = world.balls.length;
   world.balls = world.balls.filter((b) => b.phase !== 'dead');
+  // the instant the last ball leaves the screen, the next throw is available
+  if (before > 0 && world.balls.length === 0) emit({ type: 'ready' });
 }
 
 export function drainEvents(world) {

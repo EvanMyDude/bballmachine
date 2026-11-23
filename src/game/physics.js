@@ -39,6 +39,10 @@ export function stepPlaneBall(ball, world, dt, emit) {
     const prevY = ball.y;
     ball.x += ball.vx * h;
     ball.y += ball.vy * h;
+    if (outOfView(ball, r)) {
+      finish(ball, emit);
+      return;
+    }
 
     for (const hoop of world.hoops) {
       const pose = hoop.fixed ? hoop.fixed : hoopPose(hoop, tk);
@@ -63,8 +67,11 @@ export function stepPlaneBall(ball, world, dt, emit) {
       for (const side of [-1, 1]) {
         const ex = pose.x + side * hc.rimHalfWidth;
         const ey = rimY;
-        const dx = ball.x - ex;
+        let dx = ball.x - ex;
         const dy = ball.y - ey;
+        // A ball dead-centre on top of a rim end would balance there forever
+        // (and with one ball at a time, lock the player out). Tip it outward.
+        if (Math.abs(dx) < 0.75 && dy < 0) dx = side * 0.75;
         const R = r + hc.rimEndRadius;
         const d2 = dx * dx + dy * dy;
         if (d2 >= R * R || d2 === 0) continue;
@@ -123,10 +130,18 @@ export function stepPlaneBall(ball, world, dt, emit) {
 
   ball.rot += ball.spin * dt + (ball.vx / r) * dt * 0.5;
   ball.spin *= 1 - 1.5 * dt;
+  ball.age += dt;
+  if (ball.age > bc.maxLifetime) finish(ball, emit); // safety net, should never trigger
+}
 
-  // gone below the playfield (behind the bottom strip) or off the sides
-  if (ball.y - r > STAGE.PLAY_BOTTOM + 30 || ball.x < -150 || ball.x > STAGE.W + 150 || ball.y < -400) {
-    ball.phase = 'dead';
-    emit({ type: 'ballDone', ballId: ball.id, chain: ball.chain });
-  }
+// Completely out of view: below the playfield (hidden behind the bottom
+// strip) or past a side edge. Checked every substep so the next throw
+// unlocks the instant the ball disappears.
+export function outOfView(ball, r) {
+  return ball.y - r >= STAGE.PLAY_BOTTOM || ball.x + r <= 0 || ball.x - r >= STAGE.W;
+}
+
+function finish(ball, emit) {
+  ball.phase = 'dead';
+  emit({ type: 'ballDone', ballId: ball.id, chain: ball.chain });
 }
