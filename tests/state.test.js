@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultConfig } from '../src/config.js';
-import { createGame, update, needed, startLevel, UI } from '../src/game/state.js';
+import { createGame, update, needed, startLevel, canStart, UI } from '../src/game/state.js';
 import { LEVELS } from '../src/levels.js';
 
 const DT = 1 / 120;
@@ -18,7 +18,7 @@ function startRound(game) {
   if (game.phase === 'title') click(game);
   for (let i = 0; i < 2000 && game.phase === 'intro'; i++) update(game, DT);
   assert.equal(game.phase, 'ready', 'preview should end frozen in ready');
-  advance(game, 0.35); // respect the start guard + quiet gap
+  advance(game, 0.55); // respect the start guard + quiet gap
   click(game);
   assert.equal(game.phase, 'playing');
 }
@@ -269,25 +269,71 @@ test('the click that starts the round never throws a ball', () => {
   assert.equal(game.world.balls.length, 1);
 });
 
-test('frantic clicking cannot chain from LEVEL COMPLETE into a running clock', () => {
+for (const every of [0.15, 0.33, 0.42]) {
+  test(`clicking every ${every}s cannot chain from LEVEL COMPLETE into a running clock`, () => {
+    const cfg = defaultConfig();
+    const lv = LEVELS.slice(0, 2).map((l) => ({ ...l, time: 2, target: 1 }));
+    const game = createGame(lv, cfg);
+    startRound(game);
+    game.score += 5;
+    const stepEvery = Math.round(every / DT);
+    for (let i = 0; i < Math.round(12 / DT); i++) {
+      if (i % stepEvery === 0) game.inputQueue.push({ type: 'click', x: 800, y: 500 });
+      update(game, DT);
+      if (game.levelIndex === 1) assert.notEqual(game.phase, 'playing', 'round 2 started while clicking');
+    }
+    assert.equal(game.levelIndex, 1);
+    assert.equal(game.phase, 'ready');
+    assert.equal(canStart(game), false, 'prompt stays dim while clicking');
+    advance(game, 0.55); // stop clicking for a moment...
+    assert.equal(canStart(game), true, 'prompt lights up');
+    click(game); // ...then one deliberate click starts it
+    assert.equal(game.phase, 'playing');
+  });
+}
+
+test('carried-over clicks from the buzzer never press START OVER / TRY AGAIN', () => {
+  for (const every of [0.15, 0.33]) {
+    const cfg = defaultConfig();
+    const game = createGame(tinyLevels(2), cfg);
+    startRound(game); // target 10, never reached -> game over
+    const stepEvery = Math.round(every / DT);
+    let sawOver = false;
+    for (let i = 0; i < Math.round(8 / DT); i++) {
+      if (i % stepEvery === 0) game.inputQueue.push({ type: 'click', x: UI.restart.x + 20, y: UI.restart.y + 20 });
+      update(game, DT);
+      if (game.phase === 'gameOver') sawOver = true;
+      if (sawOver) assert.equal(game.phase, 'gameOver', `a carried-over click (every ${every}s) left the game-over screen`);
+    }
+    assert.ok(sawOver);
+    advance(game, 0.5);
+    click(game, UI.retry.x + 10, UI.retry.y + 10);
+    assert.equal(game.phase, 'intro', 'a deliberate click still works');
+  }
+});
+
+test('a double-click cannot skip the level preview', () => {
+  const game = createGame(LEVELS, defaultConfig());
+  click(game); // title -> preview
+  advance(game, 3 * DT);
+  click(game); // second click of the double-click
+  assert.equal(game.phase, 'intro', 'still previewing');
+});
+
+test('a stray ball scoring after the round ends shows no popup and adds nothing', () => {
   const cfg = defaultConfig();
-  const lv = LEVELS.slice(0, 2).map((l) => ({ ...l, time: 2, target: 1 }));
+  const lv = tinyLevels(2);
+  lv[0].target = 2;
   const game = createGame(lv, cfg);
   startRound(game);
-  game.score += 5;
-  // click every 0.15 s through the buzzer, LEVEL COMPLETE, preview and ready
-  let t = 0;
-  for (let i = 0; i < Math.round(12 / DT); i++) {
-    if (i % Math.round(0.15 / DT) === 0) game.inputQueue.push({ type: 'click', x: 800, y: 500 });
-    update(game, DT);
-    t += DT;
-    if (game.levelIndex === 1) assert.notEqual(game.phase, 'playing', `round 2 started at ${t.toFixed(2)}s while spamming`);
-  }
-  assert.equal(game.levelIndex, 1);
-  assert.equal(game.phase, 'ready');
-  advance(game, 0.4); // stop clicking for a moment...
-  click(game); // ...then one deliberate click starts it
-  assert.equal(game.phase, 'playing');
+  game.score += 2;
+  advance(game, 2.2 + cfg.game.buzzerGrace);
+  assert.equal(game.phase, 'levelEnd');
+  const before = game.score;
+  game.events.length = 0;
+  const ev = scoreBasket(game);
+  assert.equal(game.score, before);
+  assert.equal(ev.filter((e) => e.type === 'basket').length, 0, 'no DOUBLE popup / sound');
 });
 
 test('several inputs in one step cause only one phase transition', () => {
@@ -301,7 +347,7 @@ test('Space/Enter starts a frozen round, after the quiet gap', () => {
   const game = createGame(LEVELS, defaultConfig());
   click(game);
   for (let i = 0; i < 1000 && game.phase === 'intro'; i++) update(game, DT);
-  advance(game, 0.4);
+  advance(game, 0.55);
   game.inputQueue.push({ type: 'key' });
   update(game, DT);
   assert.equal(game.phase, 'playing');

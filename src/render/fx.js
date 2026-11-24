@@ -15,7 +15,6 @@ export function fxEvent(fx, e) {
     fx.readyPop = 1;
   }
   if (e.type === 'levelStart') {
-    fx.readyPop = 1;
     fx.banner = null;
     fx.goalFlash = 0;
   }
@@ -48,7 +47,7 @@ export function updateFx(fx, dt) {
   fx.readyPop = Math.max(0, fx.readyPop - dt * 3.2);
   fx.dud = Math.max(0, fx.dud - dt * 3.5);
   fx.goalFlash = Math.max(0, fx.goalFlash - dt * 0.9);
-  fx.go = Math.max(0, fx.go - dt / 0.75);
+  fx.go = Math.max(0, fx.go - dt / 0.55);
   if (fx.banner) {
     fx.banner.t += dt;
     if (fx.banner.t >= fx.banner.life) fx.banner = null;
@@ -128,12 +127,13 @@ export function drawFx(ctx, fx) {
   if (fx.go > 0) drawGo(ctx, fx.go);
 }
 
-// "GO!" the instant the clock starts: punches in, then fades.
+// "GO!" the instant the clock starts: punches in, then fades fast so it
+// never blocks the first throw.
 function drawGo(ctx, k) {
-  const u = 1 - k; // 0 -> 1 over its life
+  const u = 1 - k; // 0 -> 1 over its 0.55 s life
   const s = u < 0.15 ? 0.6 + (u / 0.15) * 0.6 : 1.2 - (u - 0.15) * 0.25;
   ctx.save();
-  ctx.globalAlpha = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
+  ctx.globalAlpha = u < 0.25 ? 1 : Math.max(0, 1 - (u - 0.25) / 0.6);
   ctx.translate(792, 600);
   ctx.scale(s, s);
   ctx.textAlign = 'center';

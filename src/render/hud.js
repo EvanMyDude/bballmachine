@@ -4,7 +4,7 @@
 import { STAGE, GAME_TITLE_LINES } from '../config.js';
 import { gearStrip } from './textures.js';
 import { FONT, COLORS, drawBall, drawPipeFrame } from './draw.js';
-import { UI, needed } from '../game/state.js';
+import { UI, needed, canStart } from '../game/state.js';
 
 let hudBg = null;
 let footBg = null;
@@ -397,9 +397,15 @@ export function drawOverlay(ctx, game, pointer, now) {
     shadowText(ctx, `NEEDED ${game.target} IN ${game.levelTime} SECONDS`, 0, 568, 50, '#fff', { lw: 8 });
     const rb = game.roundBest[game.levels[game.levelIndex].id];
     if (rb) shadowText(ctx, `YOUR BEST HERE: ${rb}`, 0, 614, 30, '#c9d22c', { lw: 5 });
-    const pulse = 0.72 + 0.28 * Math.sin(now * 5);
-    ctx.globalAlpha = a * pulse;
-    shadowText(ctx, 'CLICK TO START', 0, 700, 70, '#ff9a2e', { lw: 10 });
+    // The prompt glows only when a press will be accepted; while the player
+    // is still clicking (momentum from the last round) it stays dim.
+    if (canStart(game)) {
+      ctx.globalAlpha = a * (0.72 + 0.28 * Math.sin(now * 5));
+      shadowText(ctx, 'CLICK TO START', 0, 700, 70, '#ff9a2e', { lw: 10 });
+    } else {
+      ctx.globalAlpha = a * 0.45;
+      shadowText(ctx, 'CLICK TO START', 0, 700, 70, '#8a8172', { lw: 10 });
+    }
     ctx.globalAlpha = a;
     shadowText(ctx, 'or press SPACE', 0, 738, 24, '#b8ad98', { font: FONT.body, lw: 4 });
     ctx.restore();

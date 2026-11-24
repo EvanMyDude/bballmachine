@@ -107,7 +107,7 @@ export function boardAt(world, x, y, t = world.t) {
   const hc = world.cfg.hoop;
   const f = world.cfg.flight;
   const margin = f.boardCatchMargin;
-  const grace = f.topCatchGrace ?? 0;
+  const grace = f.topCatchGrace;
   let best = null;
   for (const hoop of world.hoops) {
     const pose = hoopPose(hoop, t);
@@ -146,9 +146,9 @@ function land(world, ball, emit) {
   // Checked against every hoop, only at the moment of landing.
   for (const hoop of world.hoops) {
     const pose = hoopPose(hoop, world.t);
-    if (inLandingZone(pose, ball.x, ball.y, hc)) {
-      if (creditBasket(ball, hoop, pose.x, pose.y + hc.rimOffsetY, world.cfg, emit)) ball.inNet = true;
-    }
+    if (!inLandingZone(pose, ball.x, ball.y, hc)) continue;
+    creditBasket(ball, hoop, pose.x, pose.y + hc.rimOffsetY, world.cfg, emit);
+    ball.inNet = true;
   }
 }
 

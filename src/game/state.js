@@ -42,7 +42,6 @@ export function createGame(levels, cfg, { best = 0, roundBest = {} } = {}) {
     inputQueue: [],
     events: [], // drained each frame by renderer/audio
     lastTick: null,
-    previewSteps: 0,
     sinceInput: Infinity, // seconds since the last click / key (start guard)
   };
 }
@@ -56,9 +55,9 @@ export function needed(game) {
 }
 
 // The preview plays the machine from t = -introTime up to t = 0, the level's
-// real (screenshot-measured) starting arrangement, then freezes there. Every
-// attempt therefore starts from the identical state the balance sims use.
-// Whole steps are counted and the clock is snapped to exactly 0.
+// real (screenshot-measured) starting arrangement, then freezes there (the
+// clock is snapped to exactly 0). Every attempt therefore starts from the
+// identical state the balance sims use.
 export function startLevel(game, index) {
   const level = game.levels[index];
   const cfg = game.cfg;
@@ -68,8 +67,7 @@ export function startLevel(game, index) {
   game.levelTime = level.time ?? cfg.game.levelTime;
   game.timeLeft = game.levelTime;
   game.world = createWorld(level, cfg);
-  game.previewSteps = Math.max(0, Math.round(cfg.game.introTime * cfg.sim.hz));
-  game.world.t = -game.previewSteps / cfg.sim.hz;
+  game.world.t = -cfg.game.introTime;
   for (const h of game.world.hoops) setHoopTime(h, game.world.t);
   game.phase = 'intro';
   game.phaseT = 0;
@@ -101,27 +99,39 @@ export function freeze(game) {
   if (game.phase !== 'intro') return;
   game.world.t = 0;
   for (const h of game.world.hoops) setHoopTime(h, 0);
-  game.previewSteps = 0;
   setPhase(game, 'ready');
   game.events.push({ type: 'machineFreeze' });
 }
 
 // Start the clock. (Also used by the debug/test API to jump straight in.)
 export function beginRound(game) {
-  if (game.phase === 'intro') freeze(game);
+  freeze(game); // no-op unless still previewing
   if (game.phase !== 'ready') return;
   setPhase(game, 'playing');
   game.events.push({ type: 'roundStart', level: game.levels[game.levelIndex].id });
 }
 
-// In 'ready', only a deliberate press starts the round: not in the first
-// 0.25 s, and only after a 0.3 s gap since the previous press, so frantic
-// clicking from the buzzer through LEVEL COMPLETE can't chain into a
-// running clock.
-const READY_GUARD = 0.25;
-const QUIET_GAP = 0.3;
+// Input guards. Momentum clicks (mashing through the buzzer and the end
+// screens) must never start a round or press START OVER by accident:
+//   READY_GUARD  'ready' ignores presses for its first half second
+//   QUIET_GAP    a press only counts after this long since the previous one
+//                (every press re-arms it), on 'ready' and on GAME OVER
+//   PREVIEW_SKIP the preview can't be skipped by a double-click
+const READY_GUARD = 0.5;
+const QUIET_GAP = 0.45;
+const PREVIEW_SKIP = 0.35;
+
+// Would a press right now start the round? (Drives the glowing prompt.)
+export function canStart(game) {
+  return game.phase === 'ready' && game.phaseT >= READY_GUARD && game.sinceInput >= QUIET_GAP;
+}
+
 function tryStart(game, gap) {
   if (game.phaseT >= READY_GUARD && gap >= QUIET_GAP) beginRound(game);
+}
+
+function skipPreview(game) {
+  if (game.phaseT >= PREVIEW_SKIP) freeze(game); // never starts the clock
 }
 
 // Record this round's points against the player's best for the round.
@@ -151,7 +161,7 @@ export function handleKey(game, gap = Infinity) {
       if (game.phase === 'title' || game.phaseT > 0.6) newGame(game);
       break;
     case 'intro':
-      freeze(game); // skip the preview, but don't start the clock
+      skipPreview(game);
       break;
     case 'ready':
       tryStart(game, gap);
@@ -160,7 +170,7 @@ export function handleKey(game, gap = Infinity) {
       if (game.phaseT > 0.4) startLevel(game, game.levelIndex + 1);
       break;
     case 'gameOver':
-      if (game.phaseT > 0.4) retryLevel(game);
+      if (game.phaseT > 0.4 && gap >= QUIET_GAP) retryLevel(game);
       break;
     default:
       break;
@@ -173,7 +183,7 @@ export function handleClick(game, x, y, gap = Infinity) {
       newGame(game);
       break;
     case 'intro':
-      freeze(game); // skip the preview, but don't start the clock
+      skipPreview(game);
       break;
     case 'ready':
       tryStart(game, gap); // this click never throws a ball
@@ -185,7 +195,8 @@ export function handleClick(game, x, y, gap = Infinity) {
       if (game.phaseT > 0.4) startLevel(game, game.levelIndex + 1);
       break;
     case 'gameOver':
-      if (game.phaseT < 0.4) break;
+      // carried-over clicks from the buzzer must not land on START OVER
+      if (game.phaseT < 0.4 || gap < QUIET_GAP) break;
       if (inRect(UI.restart, x, y)) newGame(game);
       else retryLevel(game);
       break;
@@ -200,7 +211,10 @@ export function handleClick(game, x, y, gap = Infinity) {
 function collectWorldEvents(game) {
   for (const e of drainEvents(game.world)) {
     const live = game.phase === 'playing' || game.phase === 'buzzer';
-    if (e.type === 'basket' && live) game.score += e.points + e.bonus;
+    if (e.type === 'basket') {
+      if (!live) continue; // a stray ball after the round: no popup, no sound
+      game.score += e.points + e.bonus;
+    }
     game.events.push(e);
     // the moment NEEDED hits zero: celebrate (the round keeps running)
     if (e.type === 'basket' && live && !game.reached && needed(game) === 0) {
@@ -230,15 +244,10 @@ export function update(game, dt) {
   game.phaseT += dt;
 
   switch (game.phase) {
-    case 'title':
-      stepWorld(game.world, dt);
-      collectWorldEvents(game);
-      break;
-
     case 'intro':
       stepWorld(game.world, dt);
       collectWorldEvents(game);
-      if (--game.previewSteps <= 0) freeze(game);
+      if (game.phaseT >= g.introTime) freeze(game);
       break;
 
     case 'ready':
@@ -282,7 +291,7 @@ export function update(game, dt) {
       break;
 
     default:
-      // gameOver / victory: machine keeps running in the background
+      // title / gameOver / victory: the machine keeps running in the background
       stepWorld(game.world, dt);
       collectWorldEvents(game);
       break;

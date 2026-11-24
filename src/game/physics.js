@@ -14,14 +14,13 @@ import { STAGE } from '../config.js';
 // Shared by the rim-crossing test and the landing-in-the-net test. It always
 // re-reads ball.scored, so a hoop can never be credited twice for one ball.
 export function creditBasket(ball, hoop, x, rimY, cfg, emit) {
-  if (ball.scored.includes(hoop.id) || ball.banned.includes(hoop.id)) return false;
+  if (ball.scored.includes(hoop.id) || ball.banned.includes(hoop.id)) return;
   ball.scored.push(hoop.id);
   ball.chain += 1;
   const award = basketAward(ball.chain, cfg.scoring);
   hoop.swish = cfg.hoop.swishTime;
   hoop.flash = 0.35;
   emit({ type: 'basket', ballId: ball.id, hoopId: hoop.id, x, y: rimY, chain: ball.chain, ...award });
-  return true;
 }
 
 // Did a thrown ball LAND inside this hoop's upper net? The zone follows the
@@ -88,7 +87,7 @@ export function stepPlaneBall(ball, world, dt, emit) {
       ) {
         ball.inNet = true;
         if (relY > 0) {
-          const carryVx = hvx * (hc.netCarry ?? 0.25);
+          const carryVx = hvx * hc.netCarry;
           ball.vx += ((pose.x - ball.x) * hc.netCentering - (ball.vx - carryVx) * hc.netDamping) * h;
           if (ball.vy > hvy) ball.vy -= (ball.vy - hvy) * hc.netDrag * h;
           // bottom of the net: settle sideways speed so a ball credited deep in

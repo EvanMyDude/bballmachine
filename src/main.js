@@ -1,9 +1,10 @@
 import { STAGE, CONFIG } from './config.js';
 import { LEVELS } from './levels.js';
-import { createGame, update, drainGameEvents, startLevel, beginRound, needed, levelPoints } from './game/state.js';
+import { createGame, update, drainGameEvents, startLevel, beginRound, canStart, needed, levelPoints } from './game/state.js';
 import { createLoop } from './game/loop.js';
 import { hoopPose, createHoops } from './game/hoop.js';
-import { shoot, shotReady } from './game/world.js';
+import { shoot, shotReady, boardAt } from './game/world.js';
+import { inLandingZone } from './game/physics.js';
 import { backgroundFor, makeCanvas } from './render/textures.js';
 import { drawRail, drawStop, drawBoard, drawRimBack, drawNet, drawRimFront, drawBall, drawTutorialPanel } from './render/draw.js';
 import { drawHud, drawFooter, drawOverlay, drawReadyLamp, SOUND_BUTTON } from './render/hud.js';
@@ -118,8 +119,11 @@ function toggleMute() {
 
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  // left button / first finger only: right-clicks and extra touches don't throw
-  if (e.button !== 0 || !e.isPrimary) return;
+  // left button only; extra fingers only count as throws during play
+  if (e.button !== 0) return;
+  if (!e.isPrimary && game.phase !== 'playing') return;
+  // a focused debug-panel button would otherwise keep eating Space
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   initAudio();
   const p = toStage(e);
   rt.pointer = p;
@@ -187,6 +191,10 @@ function syncPanel() {
   if (rt.debug.panel) mountPanel(panelEl, rt, api);
 }
 
+// Recent game events (capped), so automation can see transient moments such
+// as targetReached, machineFreeze, roundStart and refused throws ('dud').
+const recentEvents = [];
+
 window.__game = {
   game,
   cfg,
@@ -195,9 +203,26 @@ window.__game = {
     initAudio();
     game.inputQueue.push({ type: 'click', x, y });
   },
-  // Throw directly (bypasses phase checks) at stage coords.
+  // Start a frozen round now (what a deliberate click on CLICK TO START does).
+  start() {
+    beginRound(game);
+    return game.phase === 'playing';
+  },
+  // Throw at stage coords, during play only (keeps every round's start identical).
   shootAt(x, y) {
-    return !!shoot(game.world, x, y);
+    return game.phase === 'playing' && !!shoot(game.world, x, y);
+  },
+  // Where would a throw clicked NOW at (x, y) end up? Board that catches it
+  // (incl. the over-the-top grace) and hoop whose net it lands in, or null.
+  predict(x, y) {
+    const w = game.world;
+    const t = w.t + cfg.flight.duration;
+    const hit = boardAt(w, x, y, t);
+    const net = w.hoops.find((h) => inLandingZone(hoopPose(h, t), x, y, cfg.hoop));
+    return { board: hit ? hit.hoop.id : null, net: net ? net.id : null };
+  },
+  events(type) {
+    return type ? recentEvents.filter((e) => e.type === type) : recentEvents.slice();
   },
   // Where to click so a ball thrown NOW drops cleanly into hoop i.
   lead(i, above = 26) {
@@ -214,7 +239,9 @@ window.__game = {
       levelPoints: levelPoints(game),
       timeLeft: +game.timeLeft.toFixed(2),
       balls: game.world.balls.map((b) => ({ id: b.id, phase: b.phase, chain: b.chain })),
-      ready: game.phase === 'playing' && shotReady(game.world),
+      shotReady: game.phase === 'playing' && shotReady(game.world),
+      ready: game.phase === 'playing' && shotReady(game.world), // alias of shotReady
+      canStart: canStart(game),
     };
   },
   jumpLevel: (n) => api.jumpLevel(n),
@@ -268,23 +295,20 @@ function render(now) {
     drawBoard(ctx, pose, hc, h.flash);
     drawRimBack(ctx, pose, hc);
   }
-  // a ball inside a net it has scored is drawn behind that net...
-  for (const b of world.balls) {
-    if (b.phase !== 'plane' || !b.inNet) continue;
-    const p = ballPos(b);
-    drawBall(ctx, p.x, p.y, cfg.ball.radius, b.rot);
-  }
+  const drawPlaneBalls = (inNet) => {
+    for (const b of world.balls) {
+      if (b.phase !== 'plane' || !!b.inNet !== inNet) continue;
+      const p = ballPos(b);
+      drawBall(ctx, p.x, p.y, cfg.ball.radius, b.rot);
+    }
+  };
+  drawPlaneBalls(true); // a ball inside a net it has scored is drawn behind that net...
   for (const h of sorted) {
     const pose = poses.get(h);
     drawNet(ctx, pose, hc, h.swish);
     drawRimFront(ctx, pose, hc);
   }
-  // ...every other ball is in front, so a miss never looks like it went in
-  for (const b of world.balls) {
-    if (b.phase !== 'plane' || b.inNet) continue;
-    const p = ballPos(b);
-    drawBall(ctx, p.x, p.y, cfg.ball.radius, b.rot);
-  }
+  drawPlaneBalls(false); // ...every other ball is in front, so a miss never looks like a make
   drawFx(ctx, fx);
   ctx.restore();
 
@@ -333,6 +357,8 @@ function frame(now) {
   if (rt.debug.paused) game.inputQueue.length = 0; // don't let clicks pile up while debug-paused
   rt.debug.stepsLast = loop.advance(dt);
   for (const e of drainGameEvents(game)) {
+    recentEvents.push(e);
+    if (recentEvents.length > 200) recentEvents.shift();
     fxEvent(fx, e);
     audioEvent(e);
     if (e.type === 'gameOver' || e.type === 'victory') store.set('best', game.best);
