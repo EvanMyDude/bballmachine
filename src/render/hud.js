@@ -167,7 +167,12 @@ export function drawHud(ctx, game, fx, now) {
   const need = inLevel ? needed(game) : game.levels[0].target;
   const target = inLevel ? game.target : game.levels[0].target;
   label(ctx, 'NEEDED', 1133, 60);
-  bar(ctx, target ? need / target : 0, 1145, 26, 410, 38, '#f7941d', need);
+  if (inLevel && need === 0 && game.reached) {
+    const pulse = 0.55 + 0.45 * Math.max(fx.goalFlash, 0.5 + 0.5 * Math.sin(now * 6) * fx.goalFlash);
+    bar(ctx, 1, 1145, 26, 410, 38, `rgba(150,214,40,${pulse})`, 'CLEAR!');
+  } else {
+    bar(ctx, target ? need / target : 0, 1145, 26, 410, 38, '#f7941d', need);
+  }
 
   const tFrac = inLevel ? game.timeLeft / game.levelTime : 1;
   const warn = inLevel && game.phase === 'playing' && game.timeLeft <= game.cfg.game.warnTime;
@@ -303,6 +308,17 @@ function button(ctx, b, hot) {
   shadowText(ctx, b.label, b.x + b.w / 2, b.y + b.h - 17, 36, '#fff', { lw: 6 });
 }
 
+// dark band behind big centred text so it reads over busy machines/panels
+function ribbon(ctx, yTop, h, a = 0.62) {
+  const g = ctx.createLinearGradient(0, yTop, 0, yTop + h);
+  g.addColorStop(0, 'rgba(15,9,0,0)');
+  g.addColorStop(0.2, `rgba(15,9,0,${a})`);
+  g.addColorStop(0.8, `rgba(15,9,0,${a})`);
+  g.addColorStop(1, 'rgba(15,9,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, yTop, STAGE.W, h);
+}
+
 function dim(ctx, a) {
   ctx.fillStyle = `rgba(0,0,0,${a})`;
   ctx.fillRect(0, STAGE.PLAY_TOP, STAGE.W, STAGE.PLAY_BOTTOM - STAGE.PLAY_TOP);
@@ -340,13 +356,16 @@ export function drawOverlay(ctx, game, pointer, now) {
     const a = t < 0.15 ? t / 0.15 : t > game.cfg.game.introTime - 0.25 ? Math.max(0, (game.cfg.game.introTime - t) / 0.25) : 1;
     ctx.globalAlpha = a;
     dim(ctx, 0.25);
+    ribbon(ctx, 410, 330);
     const s = 1 + Math.max(0, 0.15 - t) * 2;
     ctx.save();
     ctx.translate(cx, 560);
     ctx.scale(s, s);
     shadowText(ctx, `LEVEL ${game.levelIndex + 1}`, 0, 0, 150, COLORS.yellowText, { lw: 12 });
     ctx.restore();
-    shadowText(ctx, `NEEDED: ${game.target}`, cx, 650, 54, '#fff', { lw: 8 });
+    shadowText(ctx, `NEEDED ${game.target} IN ${game.levelTime} SECONDS`, cx, 650, 54, '#fff', { lw: 8 });
+    const rb = game.roundBest[game.levels[game.levelIndex].id];
+    if (rb) shadowText(ctx, `YOUR BEST HERE: ${rb}`, cx, 708, 34, '#c9d22c', { lw: 6 });
     ctx.globalAlpha = 1;
     return;
   }
@@ -358,24 +377,40 @@ export function drawOverlay(ctx, game, pointer, now) {
 
   if (p === 'levelEnd') {
     dim(ctx, 0.3);
-    shadowText(ctx, 'LEVEL COMPLETE!', cx, 540, 120, COLORS.yellowText, { lw: 12 });
-    shadowText(ctx, `SCORE ${game.score}`, cx, 630, 54, '#fff', { lw: 8 });
+    ribbon(ctx, 400, 350, 0.7);
+    shadowText(ctx, 'LEVEL COMPLETE!', cx, 520, 120, COLORS.yellowText, { lw: 12 });
+    shadowText(ctx, `ROUND ${game.lastRoundPoints} / ${game.target}`, cx, 600, 54, '#fff', { lw: 8 });
+    const id = game.levels[game.levelIndex].id;
+    if (game.newRoundBest) shadowText(ctx, 'NEW ROUND BEST!', cx, 660, 44, '#c9e63b', { lw: 7 });
+    else shadowText(ctx, `ROUND BEST ${game.roundBest[id] || 0}`, cx, 660, 36, '#c9d22c', { lw: 6 });
+    shadowText(ctx, `TOTAL SCORE ${game.score}`, cx, 712, 34, '#fff', { lw: 6 });
     return;
   }
 
   if (p === 'gameOver') {
     dim(ctx, 0.5);
-    drawPipeFrame(ctx, 452, 300, 680, 470, 46);
+    drawPipeFrame(ctx, 452, 300, 680, 510, 46);
     ctx.fillStyle = 'rgba(10,6,2,0.78)';
-    ctx.fillRect(498, 346, 588, 378);
+    ctx.fillRect(498, 346, 588, 418);
     shadowText(ctx, "TIME'S UP!", cx, 450, 100, '#ff6a2a', { lw: 10 });
     shadowText(ctx, `You needed ${needed(game)} more point${needed(game) === 1 ? '' : 's'}.`, cx, 520, 38, '#fff', {
       font: FONT.body,
       lw: 6,
     });
-    shadowText(ctx, `SCORE ${game.score}`, cx, 588, 44, COLORS.yellowText, { lw: 7 });
+    const id = game.levels[game.levelIndex].id;
+    const rb = game.roundBest[id];
+    shadowText(
+      ctx,
+      `ROUND ${game.lastRoundPoints} / ${game.target}${rb ? `    BEST ${rb}` : ''}`,
+      cx,
+      588,
+      40,
+      COLORS.yellowText,
+      { lw: 7 },
+    );
     button(ctx, UI.retry, hot(UI.retry));
     button(ctx, UI.restart, hot(UI.restart));
+    shadowText(ctx, 'SPACE = TRY AGAIN', cx, 748, 24, '#b8ad98', { font: FONT.body, lw: 4 });
     return;
   }
 

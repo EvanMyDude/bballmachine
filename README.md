@@ -14,7 +14,10 @@ All art, sound and code here are new. Backgrounds, wood, gears, pipes and the lo
 - **One ball at a time.** Your next throw unlocks the instant the current ball is completely out of view (dropped out the bottom, knocked off a side, or a miss faded away behind the machine). The **READY** lamp at the bottom left lights up the moment you can throw. Clicking early flashes it red and does nothing.
 - **Moving hoops:** lead them. The throw takes ~0.6 s. Hoops move a little faster on each new machine.
 - **Stacked hoops:** after a basket the ball falls straight down. A hoop lined up underneath gives **DOUBLE! +50**, and a third gives **TRIPLE! +100**.
-- Each basket is worth 2 points. Get **NEEDED** to 0 before **TIME** runs out. The level always plays out its full timer, and the score carries over between levels.
+- Each basket is worth 2 points. A double adds +50 and a triple +100 in total, so a triple is worth about two doubles.
+- Get **NEEDED** to 0 before **TIME** runs out. Rounds are short (20–35 s) and tuned so a good player finishes near the buzzer. Hitting the target mid-round triggers **TARGET REACHED!** The round keeps running so you can pad your score. A ball still in the air at zero can finish a **BUZZER BEATER**.
+- Score carries over between levels. Each round remembers your best.
+- Space / Enter / R continues or retries on the end screens.
 - `M` toggles sound (or use the speaker icon at the bottom right).
 
 ## Reconstruction notes
@@ -33,13 +36,23 @@ Nothing about the original's mechanics survives online beyond a Cutting Room Flo
 - **Score is cumulative.** L2 starts at 384.
 - **A basket is 2 points.** Every score is even, and L5 goes 1548→1602 = one double (50) + 2 baskets.
 - **The timer always runs out.** L7 shows NEEDED 0 with ~60% of the time left.
-- **Targets**: L1 150 and L2 400 are solid. L3 100, L4–L7 50 and L8 56 come from partly blurred digits and are tunable in `src/levels.js`.
+- **The original's targets**: L1 150 and L2 400 are solid. L3 100, L4–L7 50 and L8 56 come from partly blurred digits.
+
+**Rebalanced for this version (by request)**
+
+The original's long rounds and low targets made rounds a formality. HOOPWORKS uses short rounds with targets you finish near the buzzer:
+
+| Round | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Time | 30 s | 35 s | 25 s | 25 s | 25 s | 25 s | 20 s | 30 s |
+| Target | 500 | 1270 | 400 | 575 | 450 | 525 | 525 | 750 |
+
+Round 2's target equals every possible right-column triple in 35 s (11 × 106 = 1166) plus one left moving-hoop triple, or two doubles. Rounds 3–8 sit where perfect play needs about 63–77% of the clock and a skilled simulated player clears in the last fifth (`node scripts/bot.mjs` prints the numbers).
 
 **Unknown, so chosen and kept tunable**
-- Level length: 60 s.
 - Hoop speeds (ramped up each level) and loop directions.
 - Throw pacing. A design choice, not from the screenshots: one ball at a time, the next unlocked the moment the last is out of view (`flight.oneBallAtATime`).
-- Whether a triple pays 50+100 or 100 total. Default: cumulative; switch with `scoring.bonusMode`.
+- Whether a triple pays 100 total or 50+100. Default: 100 total, per the original's "Triple Baskets! (100 points)" panel. Switch with `scoring.bonusMode`.
 - Failure flow: Try Again / Start Over.
 - What follows level 8: a victory screen.
 - L8 has four rails with no visible hoop. They are left empty, as in the screenshot.
@@ -67,7 +80,11 @@ Open the game with `?debug=1`, or press `` ` `` (backtick) in game, for:
 - a reference-screenshot overlay (local only);
 - "Copy JSON" to export tuned values.
 
-`node scripts/bot.mjs` plays every level under the real rules with three simulated players and reports points per level vs the target: *ideal* (perfect and instant), *skilled*, and *casual* (reaction delay, aim and timing error, doesn't always plan combos). `--speed=1.5` scales every hoop speed, and `--ci` only checks that the ideal player clears every level (this runs in CI). Use it as a quick balance check after changing speeds or targets.
+Balance tools (headless, under the real rules, with *perfect*, *skilled* and *casual* simulated players):
+- `node scripts/bot.mjs` prints, per round: perfect-play score and when it clears the target, how often a skilled player passes and how far into the round they typically clear, and how often a casual player passes.
+- `node scripts/bot.mjs --ci` is the CI gate. Perfect play must clear every round, and must not clear any round in under 45% of the clock.
+- `node scripts/balance.mjs --level=3 --times=20,25,30` sweeps round lengths and targets and marks the sweet spot. For round 2 it also reports the right-column-only numbers.
+- `--speed=1.3` (both scripts) scales every hoop speed.
 
 ## Development
 

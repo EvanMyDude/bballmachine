@@ -153,6 +153,16 @@ export const sfx = {
     seq.forEach((f, i) => tone('square', f, t + i * 0.09, i === seq.length - 1 ? 0.4 : 0.1, 0.13));
     tone('triangle', 131, t, 0.7, 0.2);
   },
+  // NEEDED just hit zero: a bright, quick "ta-daa"
+  goal(buzzer = false) {
+    if (!ok()) return;
+    const t = ac.currentTime + 0.12;
+    const seq = buzzer ? [523, 659, 784, 1047, 1319] : [784, 988, 1175, 1568];
+    seq.forEach((f, i) => {
+      tone('square', f, t + i * 0.075, i === seq.length - 1 ? 0.45 : 0.09, 0.13);
+      tone('triangle', f / 2, t + i * 0.075, 0.12, 0.08);
+    });
+  },
   fail() {
     if (!ok()) return;
     const t = ac.currentTime + 0.05;
@@ -197,6 +207,9 @@ export function audioEvent(e) {
       break;
     case 'timeUp':
       sfx.buzzer();
+      break;
+    case 'targetReached':
+      sfx.goal(e.buzzer);
       break;
     case 'levelComplete':
     case 'victory':

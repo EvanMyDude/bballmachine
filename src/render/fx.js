@@ -4,13 +4,27 @@
 import { FONT, COLORS } from './draw.js';
 
 export function createFx() {
-  return { popups: [], sparks: [], scoreFlash: 0, readyPop: 0, dud: 0 };
+  return { popups: [], sparks: [], scoreFlash: 0, readyPop: 0, dud: 0, banner: null, goalFlash: 0 };
 }
 
 export function fxEvent(fx, e) {
   if (e.type === 'ready') fx.readyPop = 1;
   if (e.type === 'dud') fx.dud = 1;
-  if (e.type === 'levelStart') fx.readyPop = 1;
+  if (e.type === 'levelStart') {
+    fx.readyPop = 1;
+    fx.banner = null;
+    fx.goalFlash = 0;
+  }
+  // end-of-round screens take over from the mid-round banner
+  if (e.type === 'levelComplete' || e.type === 'gameOver' || e.type === 'victory') fx.banner = null;
+  if (e.type === 'targetReached') {
+    fx.banner = { text: e.buzzer ? 'BUZZER BEATER!' : 'TARGET REACHED!', t: 0, life: e.buzzer ? 2.2 : 1.8 };
+    fx.goalFlash = 1;
+    for (let i = 0; i < 26; i++) {
+      const x = 300 + ((i * 397) % 984);
+      fx.sparks.push({ x, y: 420, vx: ((i * 53) % 200) - 100, vy: -260 - ((i * 71) % 260), t: 0, life: 0.9 });
+    }
+  }
   if (e.type === 'basket') {
     fx.scoreFlash = 1;
     if (e.label) {
@@ -29,6 +43,11 @@ export function updateFx(fx, dt) {
   fx.scoreFlash = Math.max(0, fx.scoreFlash - dt * 3);
   fx.readyPop = Math.max(0, fx.readyPop - dt * 3.2);
   fx.dud = Math.max(0, fx.dud - dt * 3.5);
+  fx.goalFlash = Math.max(0, fx.goalFlash - dt * 0.9);
+  if (fx.banner) {
+    fx.banner.t += dt;
+    if (fx.banner.t >= fx.banner.life) fx.banner = null;
+  }
   for (const p of fx.popups) p.t += dt;
   fx.popups = fx.popups.filter((p) => p.t < p.life);
   for (const s of fx.sparks) {
@@ -38,6 +57,37 @@ export function updateFx(fx, dt) {
     s.vy += 900 * dt;
   }
   fx.sparks = fx.sparks.filter((s) => s.t < s.life);
+}
+
+function drawBanner(ctx, b) {
+  const u = b.t / b.life;
+  const a = u < 0.08 ? u / 0.08 : u > 0.75 ? 1 - (u - 0.75) / 0.25 : 1;
+  const s = u < 0.1 ? 1.6 - (u / 0.1) * 0.6 : 1;
+  ctx.save();
+  ctx.globalAlpha = a;
+  // ribbon
+  const y = 420;
+  const g = ctx.createLinearGradient(0, y - 70, 0, y + 50);
+  g.addColorStop(0, 'rgba(20,12,0,0)');
+  g.addColorStop(0.25, 'rgba(20,12,0,0.62)');
+  g.addColorStop(0.75, 'rgba(20,12,0,0.62)');
+  g.addColorStop(1, 'rgba(20,12,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, y - 70, 1584, 120);
+  ctx.translate(792, y);
+  ctx.scale(s, s);
+  ctx.textAlign = 'center';
+  ctx.font = `104px ${FONT.display}`;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = '#1a0d00';
+  ctx.strokeText(b.text, 0, 30);
+  const tg = ctx.createLinearGradient(0, -50, 0, 30);
+  tg.addColorStop(0, '#f4ff8a');
+  tg.addColorStop(1, '#a6d61c');
+  ctx.fillStyle = tg;
+  ctx.fillText(b.text, 0, 30);
+  ctx.restore();
 }
 
 export function drawFx(ctx, fx) {
@@ -69,4 +119,5 @@ export function drawFx(ctx, fx) {
     ctx.fillText(`+${p.amount}`, 0, 74);
     ctx.restore();
   }
+  if (fx.banner) drawBanner(ctx, fx.banner);
 }

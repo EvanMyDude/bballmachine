@@ -78,19 +78,21 @@ export function defaultConfig() {
     scoring: {
       basketPoints: 2,
       // Bonus awarded the moment a single ball completes its Nth basket.
+      // The original's panels read "Double Baskets (50 points)" and
+      // "Triple Baskets (100 points)": a triple's bonus is 100 in total.
       bonuses: { 2: 50, 3: 100 },
-      // 'cumulative': triple pays 50 (at 2nd) + 100 (at 3rd).
-      // 'replace':    triple pays 100 total (50, then +50 more).
-      bonusMode: 'cumulative',
+      // 'replace':    triple pays 100 total (+50 at the 2nd, +50 more at the 3rd)
+      // 'cumulative': triple pays 150 (+50, then +100)
+      bonusMode: 'replace',
       labels: { 2: 'DOUBLE!', 3: 'TRIPLE!' },
     },
 
     game: {
       levelTime: 60, // default if a level does not set its own
       introTime: 1.5,
-      levelEndTime: 2.4,
+      levelEndTime: 3.0, // click / Space skips
       buzzerGrace: 1.6, // balls already thrown when time hits 0 may still score
-      warnTime: 10,
+      warnTime: 5, // last-seconds countdown ticks (rounds are short now)
     },
 
     audio: {

@@ -8,11 +8,15 @@
 //  hoops  : { at:[x,y] } stationary, or { track, start:[x,y], dir? } moving
 //  target : points NEEDED this level; time : seconds
 //
-// Evidence notes (see README "Reconstruction notes"):
-//  - L1 150 and L2 400 come straight from the HUD (score+needed, bar fill).
-//  - L3-L8 targets are read from partly blurred HUD digits; treat as tunable.
-//  - Speeds and directions are not recoverable from stills. Tuned by feel, and
-//    ramped up level by level so later machines need sharper timing.
+// Balance (see scripts/balance.mjs): rounds are short and the targets are
+// set so you finish near the buzzer. A skilled player typically clears in
+// the last fifth of the clock, even perfect play needs most of it, and a
+// first-time player usually needs a couple of tries. Round 2's target is all
+// possible right-column triples in 35 s (11 x 106 = 1166) plus one left
+// moving-hoop triple (106), or two doubles instead.
+// (The original's own targets were far lower: 150 / 400 / 100 / 50...)
+// Speeds and directions are not recoverable from stills. They are tuned by
+// feel and ramp up level by level.
 
 const BOARD_HALF_H = 83;
 const STOP_CLEAR = 15; // half thickness of a bumper
@@ -20,8 +24,8 @@ const STOP_CLEAR = 15; // half thickness of a bumper
 export const LEVELS = [
   {
     id: 1,
-    target: 150,
-    time: 60,
+    target: 500,
+    time: 30,
     background: 'fire',
     panel: { lines: ['Go for', 'Double', 'Baskets!'], sub: '(50 points)' },
     rails: [{ points: [[292, 348], [292, 910], [492, 910], [492, 348]] }],
@@ -46,8 +50,8 @@ export const LEVELS = [
 
   {
     id: 2,
-    target: 400,
-    time: 60,
+    target: 1270,
+    time: 35,
     background: 'bluesmoke',
     panel: { lines: ['Go for', 'Triple', 'Baskets!'], sub: '(100 points)' },
     rails: [{ points: [[55, 400], [690, 400], [690, 790]] }],
@@ -74,8 +78,8 @@ export const LEVELS = [
 
   {
     id: 3,
-    target: 100,
-    time: 60,
+    target: 400,
+    time: 25,
     background: 'planks',
     rails: [
       {
@@ -101,8 +105,8 @@ export const LEVELS = [
 
   {
     id: 4,
-    target: 50,
-    time: 60,
+    target: 575,
+    time: 25,
     background: 'straw',
     rails: [
       {
@@ -131,8 +135,8 @@ export const LEVELS = [
 
   {
     id: 5,
-    target: 50,
-    time: 60,
+    target: 450,
+    time: 25,
     background: 'sky',
     rails: [
       {
@@ -161,8 +165,8 @@ export const LEVELS = [
 
   {
     id: 6,
-    target: 50,
-    time: 60,
+    target: 525,
+    time: 25,
     background: 'brick',
     rails: [
       { points: [[690, 790], [690, 400], [495, 400], [495, 570], [95, 570], [95, 910], [890, 910]] },
@@ -195,8 +199,8 @@ export const LEVELS = [
 
   {
     id: 7,
-    target: 50,
-    time: 60,
+    target: 525,
+    time: 20,
     background: 'beans',
     rails: [
       { points: [[295, 345], [295, 910]] },
@@ -226,8 +230,8 @@ export const LEVELS = [
 
   {
     id: 8,
-    target: 56,
-    time: 60,
+    target: 750,
+    time: 30,
     background: 'grunge',
     rails: [
       { closed: true, points: [[290, 230], [695, 230], [695, 570], [290, 570]] },

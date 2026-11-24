@@ -17,7 +17,7 @@ export const UI = {
 
 const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
-export function createGame(levels, cfg, { best = 0 } = {}) {
+export function createGame(levels, cfg, { best = 0, roundBest = {} } = {}) {
   return {
     levels,
     cfg,
@@ -31,6 +31,10 @@ export function createGame(levels, cfg, { best = 0 } = {}) {
     levelTime: 0,
     best,
     newBest: false,
+    roundBest: { ...roundBest }, // best points scored in each round, by level id
+    newRoundBest: false,
+    reached: false, // NEEDED hit 0 this round
+    lastRoundPoints: 0,
     world: createWorld(levels[0], cfg), // title screen shows level 1 running
     inputQueue: [],
     events: [], // drained each frame by renderer/audio
@@ -57,6 +61,8 @@ export function startLevel(game, index) {
   game.phase = 'intro';
   game.phaseT = 0;
   game.lastTick = null;
+  game.reached = false;
+  game.newRoundBest = false;
   game.events.push({ type: 'levelStart', level: level.id });
 }
 
@@ -77,13 +83,44 @@ function setPhase(game, phase) {
   game.phaseT = 0;
 }
 
+// Record this round's points against the player's best for the round.
+function closeRound(game) {
+  const id = game.levels[game.levelIndex].id;
+  const pts = levelPoints(game);
+  game.lastRoundPoints = pts;
+  game.newRoundBest = pts > (game.roundBest[id] || 0);
+  if (game.newRoundBest) game.roundBest[id] = pts;
+}
+
 function finishGame(game, phase) {
+  closeRound(game);
   if (game.score > game.best) {
     game.best = game.score;
     game.newBest = true;
   }
   setPhase(game, phase);
   game.events.push({ type: phase });
+}
+
+// Space / Enter / R on a menu screen: the obvious "keep going" action.
+export function handleKey(game) {
+  switch (game.phase) {
+    case 'title':
+    case 'victory':
+      if (game.phase === 'title' || game.phaseT > 0.6) newGame(game);
+      break;
+    case 'intro':
+      setPhase(game, 'playing');
+      break;
+    case 'levelEnd':
+      if (game.phaseT > 0.4) startLevel(game, game.levelIndex + 1);
+      break;
+    case 'gameOver':
+      if (game.phaseT > 0.4) retryLevel(game);
+      break;
+    default:
+      break;
+  }
 }
 
 export function handleClick(game, x, y) {
@@ -115,10 +152,14 @@ export function handleClick(game, x, y) {
 
 function collectWorldEvents(game) {
   for (const e of drainEvents(game.world)) {
-    if (e.type === 'basket' && (game.phase === 'playing' || game.phase === 'buzzer')) {
-      game.score += e.points + e.bonus;
-    }
+    const live = game.phase === 'playing' || game.phase === 'buzzer';
+    if (e.type === 'basket' && live) game.score += e.points + e.bonus;
     game.events.push(e);
+    // the moment NEEDED hits zero: celebrate (the round keeps running)
+    if (e.type === 'basket' && live && !game.reached && needed(game) === 0) {
+      game.reached = true;
+      game.events.push({ type: 'targetReached', buzzer: game.phase === 'buzzer', timeLeft: game.timeLeft });
+    }
   }
 }
 
@@ -127,6 +168,7 @@ export function update(game, dt) {
   game.inputQueue = [];
   for (const inp of queued) {
     if (inp.type === 'click') handleClick(game, inp.x, inp.y);
+    else if (inp.type === 'key') handleKey(game);
   }
 
   const g = game.cfg.game;
@@ -164,6 +206,7 @@ export function update(game, dt) {
         if (needed(game) > 0) finishGame(game, 'gameOver');
         else if (game.levelIndex >= game.levels.length - 1) finishGame(game, 'victory');
         else {
+          closeRound(game);
           setPhase(game, 'levelEnd');
           game.events.push({ type: 'levelComplete', level: game.levelIndex + 1 });
         }

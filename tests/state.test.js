@@ -46,7 +46,7 @@ test('title click starts level 1 with intro, then play', () => {
   assert.equal(game.levelIndex, 0);
   advance(game, 2);
   assert.equal(game.phase, 'playing');
-  assert.equal(needed(game), 150);
+  assert.equal(needed(game), LEVELS[0].target);
 });
 
 test('level keeps running after NEEDED hits 0; passes when time ends', () => {
@@ -115,5 +115,92 @@ test('warning ticks fire once per second in the last seconds', () => {
     update(game, DT);
     for (const e of game.events.splice(0)) if (e.type === 'tick') ticks.push(e.seconds);
   }
-  assert.deepEqual(ticks, [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+  const expected = Array.from({ length: cfg.game.warnTime }, (_, i) => cfg.game.warnTime - i);
+  assert.deepEqual(ticks, expected);
+});
+
+// A level with one hoop where a ball dropped into it always scores 2 points.
+function scoreBasket(game) {
+  const w = game.world;
+  w.balls.push({
+    id: w.nextBallId++, phase: 'plane', age: 0, tx: 500, ty: 300, x: 500, y: 300, px: 500, py: 300,
+    vx: 0, vy: 0, scale: 1, pscale: 1, shade: 0, alpha: 1, rot: 0, spin: 0, scored: [], banned: [], chain: 0,
+  });
+  const seen = [];
+  for (let i = 0; i < 240 && w.balls.length; i++) {
+    update(game, DT);
+    seen.push(...game.events.splice(0));
+  }
+  return seen;
+}
+
+test('TARGET REACHED fires once, the moment NEEDED hits zero, and the round keeps going', () => {
+  const cfg = defaultConfig();
+  const lv = tinyLevels(1);
+  lv[0].target = 4;
+  lv[0].time = 30;
+  const game = createGame(lv, cfg);
+  click(game);
+  advance(game, cfg.game.introTime + 0.05);
+  let ev = scoreBasket(game);
+  assert.equal(ev.filter((e) => e.type === 'targetReached').length, 0, 'still 2 needed');
+  ev = scoreBasket(game);
+  const hit = ev.filter((e) => e.type === 'targetReached');
+  assert.equal(hit.length, 1);
+  assert.equal(hit[0].buzzer, false);
+  assert.equal(game.phase, 'playing', 'round continues after the target');
+  ev = scoreBasket(game);
+  assert.equal(ev.filter((e) => e.type === 'targetReached').length, 0, 'only once per round');
+});
+
+test('a ball that crosses the target after time runs out is a BUZZER BEATER', () => {
+  const cfg = defaultConfig();
+  const lv = tinyLevels(2);
+  lv[0].target = 2;
+  const game = createGame(lv, cfg);
+  click(game);
+  advance(game, cfg.game.introTime + 0.05);
+  game.timeLeft = 0.01;
+  // ball already in the air when the buzzer goes
+  const w = game.world;
+  w.balls.push({
+    id: w.nextBallId++, phase: 'plane', age: 0, tx: 500, ty: 250, x: 500, y: 250, px: 500, py: 250,
+    vx: 0, vy: 0, scale: 1, pscale: 1, shade: 0, alpha: 1, rot: 0, spin: 0, scored: [], banned: [], chain: 0,
+  });
+  const ev = [];
+  for (let i = 0; i < 400 && game.phase !== 'levelEnd'; i++) {
+    update(game, DT);
+    ev.push(...game.events.splice(0));
+  }
+  const hit = ev.find((e) => e.type === 'targetReached');
+  assert.ok(hit, 'target reached during the buzzer grace');
+  assert.equal(hit.buzzer, true);
+  assert.equal(game.phase, 'levelEnd');
+});
+
+test('round bests are recorded and flagged when beaten', () => {
+  const cfg = defaultConfig();
+  const lv = tinyLevels(2);
+  const game = createGame(lv, cfg, { roundBest: { 1: 8 } });
+  click(game);
+  advance(game, cfg.game.introTime + 0.05);
+  game.score += 12;
+  advance(game, 2.2 + cfg.game.buzzerGrace);
+  assert.equal(game.phase, 'levelEnd');
+  assert.equal(game.lastRoundPoints, 12);
+  assert.ok(game.newRoundBest);
+  assert.equal(game.roundBest[1], 12);
+});
+
+test('Space/Enter on game over retries the round instantly', () => {
+  const cfg = defaultConfig();
+  const game = createGame(tinyLevels(2), cfg);
+  click(game);
+  advance(game, cfg.game.introTime + 2.2 + cfg.game.buzzerGrace);
+  assert.equal(game.phase, 'gameOver');
+  advance(game, 0.5);
+  game.inputQueue.push({ type: 'key' });
+  update(game, DT);
+  assert.equal(game.phase, 'intro');
+  assert.equal(game.levelIndex, 0);
 });

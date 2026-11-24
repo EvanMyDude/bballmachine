@@ -85,16 +85,26 @@ test('two stacked hoops = DOUBLE +50 on the second basket', () => {
   assert.equal(b[1].label, 'DOUBLE!');
 });
 
-test('three stacked hoops = TRIPLE +100 (cumulative with the double)', () => {
+test('three stacked hoops = TRIPLE: +100 bonus in total by default (worth 106)', () => {
   const w = createWorld(level([{ at: [500, 250] }, { at: [500, 420] }, { at: [500, 590] }]), cfg());
   dropBall(w, 504, 150);
   const ev = run(w, 3);
   const b = baskets(ev);
   assert.equal(b.length, 3);
-  assert.equal(b[2].bonus, 100);
+  assert.equal(b[1].label, 'DOUBLE!');
   assert.equal(b[2].label, 'TRIPLE!');
-  assert.equal(b.reduce((s, e) => s + e.points + e.bonus, 0), 2 * 3 + 50 + 100);
+  assert.equal(b[2].shown, 100, 'popup shows the triple bonus');
+  assert.equal(b.reduce((s, e) => s + e.points + e.bonus, 0), 2 * 3 + 100, 'triple = 106, about two doubles');
   assertNoRepeatHoopPerBall(ev);
+});
+
+test("'cumulative' bonus mode makes a triple pay 50 + 100", () => {
+  const c = cfg();
+  c.scoring.bonusMode = 'cumulative';
+  const w = createWorld(level([{ at: [500, 250] }, { at: [500, 420] }, { at: [500, 590] }]), c);
+  dropBall(w, 504, 150);
+  const b = baskets(run(w, 3));
+  assert.equal(b[1].bonus + b[2].bonus, 150);
 });
 
 test("'replace' bonus mode makes a triple worth 100 total", () => {

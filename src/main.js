@@ -37,7 +37,7 @@ const store = {
 };
 
 const cfg = CONFIG;
-const game = createGame(LEVELS, cfg, { best: store.get('best', 0) });
+const game = createGame(LEVELS, cfg, { best: store.get('best', 0), roundBest: store.get('roundBest', {}) });
 const fx = createFx();
 setMuted(store.get('muted', false));
 setVolume(cfg.audio.volume);
@@ -137,7 +137,12 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-  if (e.key === 'm' || e.key === 'M') toggleMute();
+  if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+    // continue / try again / start, depending on the screen
+    e.preventDefault();
+    initAudio();
+    game.inputQueue.push({ type: 'key' });
+  } else if (e.key === 'm' || e.key === 'M') toggleMute();
   else if (e.key === '`' || e.key === '~') togglePanel();
   else if (rt.debug.panel && (e.key === 'p' || e.key === 'P')) rt.debug.paused = !rt.debug.paused;
   else if (rt.debug.panel && /^[1-8]$/.test(e.key)) api.jumpLevel(Number(e.key));
@@ -318,6 +323,7 @@ function frame(now) {
     fxEvent(fx, e);
     audioEvent(e);
     if (e.type === 'gameOver' || e.type === 'victory') store.set('best', game.best);
+    if (e.type === 'gameOver' || e.type === 'victory' || e.type === 'levelComplete') store.set('roundBest', game.roundBest);
   }
   updateFx(fx, dt);
   render(now);
