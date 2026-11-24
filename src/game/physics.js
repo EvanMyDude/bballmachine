@@ -10,6 +10,30 @@ import { STAGE } from '../config.js';
 // Anti-tunnelling: each fixed step is split into substeps so the ball never
 // travels more than maxSubstepTravel * radius per substep.
 
+// Credit a basket for `hoop` (once per hoop per ball, never if banned).
+// Shared by the rim-crossing test and the landing-in-the-net test. It always
+// re-reads ball.scored, so a hoop can never be credited twice for one ball.
+export function creditBasket(ball, hoop, x, rimY, cfg, emit) {
+  if (ball.scored.includes(hoop.id) || ball.banned.includes(hoop.id)) return false;
+  ball.scored.push(hoop.id);
+  ball.chain += 1;
+  const award = basketAward(ball.chain, cfg.scoring);
+  hoop.swish = cfg.hoop.swishTime;
+  hoop.flash = 0.35;
+  emit({ type: 'basket', ballId: ball.id, hoopId: hoop.id, x, y: rimY, chain: ball.chain, ...award });
+  return true;
+}
+
+// Did a thrown ball LAND inside this hoop's upper net? The zone follows the
+// drawn net: full rim opening at the rim line, tapering 0.25 px per px of
+// depth, down to netCatchDepth. Only checked at the moment of landing; mid-
+// flight a ball must still drop through the rim from above to count.
+export function inLandingZone(pose, x, y, hc) {
+  const relY = y - (pose.y + hc.rimOffsetY);
+  if (relY < 0 || relY > hc.netCatchDepth) return false;
+  return Math.abs(x - pose.x) <= hc.rimHalfWidth - hc.rimEndRadius - 0.25 * relY;
+}
+
 export function stepPlaneBall(ball, world, dt, emit) {
   const cfg = world.cfg;
   const bc = cfg.ball;
@@ -22,6 +46,7 @@ export function stepPlaneBall(ball, world, dt, emit) {
   const h = dt / n;
   const tEnd = world.t; // hoops are already advanced to the end of this step
   const tStart = tEnd - dt;
+  ball.inNet = false; // set below while inside a net it has scored (render order)
 
   for (let k = 1; k <= n; k++) {
     const tk = tStart + k * h;
@@ -53,14 +78,23 @@ export function stepPlaneBall(ball, world, dt, emit) {
       if (Math.abs(ball.x - pose.x) > hc.rimHalfWidth + r + 20) continue;
       if (ball.y < rimY - r - 40 || ball.y > rimY + hc.netDepth + r + 40) continue;
 
-      const scoredHere = ball.scored.includes(hoop.id);
-
       // --- net funnel (only for a ball that went through this rim) ---
       const relY = ball.y - rimY;
-      if (scoredHere && relY > 0 && relY < hc.netDepth && Math.abs(ball.x - pose.x) < hc.rimHalfWidth) {
-        const carryVx = hvx * (hc.netCarry ?? 0.25);
-        ball.vx += ((pose.x - ball.x) * hc.netCentering - (ball.vx - carryVx) * hc.netDamping) * h;
-        if (ball.vy > hvy) ball.vy -= (ball.vy - hvy) * hc.netDrag * h;
+      if (
+        ball.scored.includes(hoop.id) &&
+        relY > -r * 0.5 &&
+        relY < hc.netDepth &&
+        Math.abs(ball.x - pose.x) < hc.rimHalfWidth
+      ) {
+        ball.inNet = true;
+        if (relY > 0) {
+          const carryVx = hvx * (hc.netCarry ?? 0.25);
+          ball.vx += ((pose.x - ball.x) * hc.netCentering - (ball.vx - carryVx) * hc.netDamping) * h;
+          if (ball.vy > hvy) ball.vy -= (ball.vy - hvy) * hc.netDrag * h;
+          // bottom of the net: settle sideways speed so a ball credited deep in
+          // the net drops out straight instead of being slung by the spring
+          if (relY > hc.netDepth - 20) ball.vx += (carryVx - ball.vx) * Math.min(1, 80 * h);
+        }
       }
 
       // --- rim ends ---
@@ -99,7 +133,7 @@ export function stepPlaneBall(ball, world, dt, emit) {
       }
 
       // --- basket: centre crossed the rim line downward, inside the opening ---
-      if (!scoredHere) {
+      if (!ball.scored.includes(hoop.id)) {
         const prevPose = hoop.fixed ? pose : hoopPose(hoop, tk - h);
         const prevRel = prevY - (prevPose.y + hc.rimOffsetY);
         const nowRel = ball.y - rimY;
@@ -108,22 +142,7 @@ export function stepPlaneBall(ball, world, dt, emit) {
         if (prevRel >= 0 && nowRel < 0 && inside && !ball.banned.includes(hoop.id)) {
           ball.banned.push(hoop.id);
         }
-        if (prevRel < 0 && nowRel >= 0 && inside && !ball.banned.includes(hoop.id)) {
-          ball.scored.push(hoop.id);
-          ball.chain += 1;
-          const award = basketAward(ball.chain, cfg.scoring);
-          hoop.swish = hc.swishTime;
-          hoop.flash = 0.35;
-          emit({
-            type: 'basket',
-            ballId: ball.id,
-            hoopId: hoop.id,
-            x: pose.x,
-            y: rimY,
-            chain: ball.chain,
-            ...award,
-          });
-        }
+        if (prevRel < 0 && nowRel >= 0 && inside) creditBasket(ball, hoop, pose.x, rimY, cfg, emit);
       }
     }
   }

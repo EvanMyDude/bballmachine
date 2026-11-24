@@ -78,7 +78,7 @@ export const LEVELS = [
 
   {
     id: 3,
-    target: 400,
+    target: 300,
     time: 25,
     background: 'planks',
     rails: [
@@ -135,7 +135,7 @@ export const LEVELS = [
 
   {
     id: 5,
-    target: 450,
+    target: 400,
     time: 25,
     background: 'sky',
     rails: [

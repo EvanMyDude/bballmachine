@@ -9,13 +9,15 @@ All art, sound and code here are new. Backgrounds, wood, gears, pipes and the lo
 ## How to play
 
 - **Click a backboard to shoot.** The ball flies *into* the screen and lands exactly where you clicked.
-  - Land it just above a rim and it drops through.
-  - Land it on empty background and it sails behind the machine.
+  - Land it just above a rim, or right in the hoop's upper net, and it counts.
+  - Land it a little over the top of a backboard and it still drops down in front.
+  - Land it on open background and it sails behind the machine.
 - **One ball at a time.** Your next throw unlocks the instant the current ball is completely out of view (dropped out the bottom, knocked off a side, or a miss faded away behind the machine). The **READY** lamp at the bottom left lights up the moment you can throw. Clicking early flashes it red and does nothing.
 - **Moving hoops:** lead them. The throw takes ~0.6 s. Hoops move a little faster on each new machine.
 - **Stacked hoops:** after a basket the ball falls straight down. A hoop lined up underneath gives **DOUBLE! +50**, and a third gives **TRIPLE! +100**.
 - Each basket is worth 2 points. A double adds +50 and a triple +100 in total, so a triple is worth about two doubles.
 - Get **NEEDED** to 0 before **TIME** runs out. Rounds are short (20–35 s) and tuned so a good player finishes near the buzzer. Hitting the target mid-round triggers **TARGET REACHED!** The round keeps running so you can pad your score. A ball still in the air at zero can finish a **BUZZER BEATER**.
+- **Every level starts with a short preview.** The machine runs, then freezes in its starting position and waits for **CLICK TO START** (or Space), so you can take a break between rounds. The clock starts on GO!
 - Score carries over between levels. Each round remembers your best.
 - Space / Enter / R continues or retries on the end screens.
 - `M` toggles sound (or use the speaker icon at the bottom right).
@@ -45,7 +47,7 @@ The original's long rounds and low targets made rounds a formality. HOOPWORKS us
 | Round | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
 | Time | 30 s | 35 s | 25 s | 25 s | 25 s | 25 s | 20 s | 30 s |
-| Target | 500 | 1270 | 400 | 575 | 450 | 525 | 525 | 750 |
+| Target | 500 | 1270 | 300 | 575 | 400 | 525 | 525 | 750 |
 
 Round 2's target equals every possible right-column triple in 35 s (11 × 106 = 1166) plus one left moving-hoop triple, or two doubles. Rounds 3–8 sit where perfect play needs about 63–77% of the clock and a skilled simulated player clears in the last fifth (`node scripts/bot.mjs` prints the numbers).
 
@@ -67,6 +69,11 @@ Round 2's target equals every possible right-column triple in 35 s (11 × 106 = 
   - A basket counts only when the ball's centre crosses the rim line *downward relative to the hoop*, inside the opening.
   - Each hoop scores at most once per ball, and a ball that came up through a hoop can never score in it.
   - A net funnel centres a scored ball so it exits straight down, which is what makes stacked hoops chain.
+- **Forgiving catches and baskets** (`boardAt`, `land` in `src/game/world.js`; `inLandingZone`, `creditBasket` in `src/game/physics.js`):
+  - A throw landing up to 60 px above a backboard still drops in front of it.
+  - A throw that *lands* in a hoop's upper net (40 px deep, tapering with the drawn net) counts on the spot.
+  - That landing check runs only at landing, so a ball rising into a net from below or deflected under a rim never counts.
+  - A ball is drawn behind a net only when it has actually gone into it, so a miss never looks like a make.
 - **One ball at a time** (`shotBlocker` in `src/game/world.js`): a throw is refused while any ball is still in the world. A ball is removed in the exact physics sub-step where it is fully out of view, so the next throw is available on the very next step. A ball balanced dead-centre on a rim end is tipped off, and a lifetime cap guarantees a ball can never lock you out.
 - **Movers** (`src/game/paths.js`): pure functions of level time along polyline tracks, in `loop` or `pingpong` mode with end pauses. They are exactly reproducible at any framerate.
 

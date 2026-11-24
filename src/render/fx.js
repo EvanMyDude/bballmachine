@@ -4,12 +4,16 @@
 import { FONT, COLORS } from './draw.js';
 
 export function createFx() {
-  return { popups: [], sparks: [], scoreFlash: 0, readyPop: 0, dud: 0, banner: null, goalFlash: 0 };
+  return { popups: [], sparks: [], scoreFlash: 0, readyPop: 0, dud: 0, banner: null, goalFlash: 0, go: 0 };
 }
 
 export function fxEvent(fx, e) {
   if (e.type === 'ready') fx.readyPop = 1;
   if (e.type === 'dud') fx.dud = 1;
+  if (e.type === 'roundStart') {
+    fx.go = 1;
+    fx.readyPop = 1;
+  }
   if (e.type === 'levelStart') {
     fx.readyPop = 1;
     fx.banner = null;
@@ -44,6 +48,7 @@ export function updateFx(fx, dt) {
   fx.readyPop = Math.max(0, fx.readyPop - dt * 3.2);
   fx.dud = Math.max(0, fx.dud - dt * 3.5);
   fx.goalFlash = Math.max(0, fx.goalFlash - dt * 0.9);
+  fx.go = Math.max(0, fx.go - dt / 0.75);
   if (fx.banner) {
     fx.banner.t += dt;
     if (fx.banner.t >= fx.banner.life) fx.banner = null;
@@ -120,4 +125,24 @@ export function drawFx(ctx, fx) {
     ctx.restore();
   }
   if (fx.banner) drawBanner(ctx, fx.banner);
+  if (fx.go > 0) drawGo(ctx, fx.go);
+}
+
+// "GO!" the instant the clock starts: punches in, then fades.
+function drawGo(ctx, k) {
+  const u = 1 - k; // 0 -> 1 over its life
+  const s = u < 0.15 ? 0.6 + (u / 0.15) * 0.6 : 1.2 - (u - 0.15) * 0.25;
+  ctx.save();
+  ctx.globalAlpha = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
+  ctx.translate(792, 600);
+  ctx.scale(s, s);
+  ctx.textAlign = 'center';
+  ctx.font = `170px ${FONT.display}`;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = '#1a0d00';
+  ctx.strokeText('GO!', 0, 50);
+  ctx.fillStyle = '#c9e63b';
+  ctx.fillText('GO!', 0, 50);
+  ctx.restore();
 }

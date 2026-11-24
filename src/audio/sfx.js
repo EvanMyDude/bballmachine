@@ -218,7 +218,10 @@ export function audioEvent(e) {
     case 'gameOver':
       sfx.fail();
       break;
-    case 'levelStart':
+    case 'machineFreeze':
+      sfx.board(); // the machine clunks to a stop at its start position
+      break;
+    case 'roundStart':
       sfx.start();
       break;
     default:

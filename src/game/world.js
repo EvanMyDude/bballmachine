@@ -1,6 +1,6 @@
 import { STAGE } from '../config.js';
 import { createHoops, setHoopTime, hoopPose, boardContains } from './hoop.js';
-import { stepPlaneBall } from './physics.js';
+import { stepPlaneBall, creditBasket, inLandingZone } from './physics.js';
 
 // The world for one level: hoops (stationary + moving), live balls, and an
 // event list that the game state, renderer and audio consume.
@@ -100,14 +100,20 @@ export function flightPose(ball, u, f) {
 }
 
 // Which hoop's backboard catches a ball arriving at (x, y) at time t?
-// The front-most (highest z) wins.
+// The front-most (highest z) wins. Forgiving over the top: a ball landing up
+// to flight.topCatchGrace px above a board (and over it) still drops down in
+// front of it instead of sailing behind the machine.
 export function boardAt(world, x, y, t = world.t) {
   const hc = world.cfg.hoop;
-  const margin = world.cfg.flight.boardCatchMargin;
+  const f = world.cfg.flight;
+  const margin = f.boardCatchMargin;
+  const grace = f.topCatchGrace ?? 0;
   let best = null;
   for (const hoop of world.hoops) {
     const pose = hoopPose(hoop, t);
-    if (boardContains(pose, x, y, hc, margin) && (!best || hoop.z > best.hoop.z)) {
+    const top = pose.y - hc.boardH / 2;
+    const over = y < top - margin && y >= top - grace && Math.abs(x - pose.x) <= hc.boardW / 2 + margin;
+    if ((boardContains(pose, x, y, hc, margin) || over) && (!best || hoop.z > best.hoop.z)) {
       best = { hoop, pose };
     }
   }
@@ -134,16 +140,16 @@ function land(world, ball, emit) {
   const arcFallSpeed = (4 * f.arcHeight) / f.duration;
   ball.vx = 0;
   ball.vy = arcFallSpeed * f.arrivalVyFactor;
-  // a landing just below the rim line, inside the opening, still drops in
-  const rimY = hit.pose.y + hc.rimOffsetY;
-  if (
-    ball.y >= rimY &&
-    ball.y - rimY <= f.arrivalRimGrace &&
-    Math.abs(ball.x - hit.pose.x) < hc.rimHalfWidth - hc.rimEndRadius
-  ) {
-    ball.y = rimY - 0.5;
-  }
   emit({ type: 'board', ballId: ball.id, hoopId: hit.hoop.id, x: ball.x, y: ball.y });
+  // Clicked right on a hoop (rim or upper net): the ball lands IN it, so it
+  // counts, and the net carries it out the bottom into whatever is below.
+  // Checked against every hoop, only at the moment of landing.
+  for (const hoop of world.hoops) {
+    const pose = hoopPose(hoop, world.t);
+    if (inLandingZone(pose, ball.x, ball.y, hc)) {
+      if (creditBasket(ball, hoop, pose.x, pose.y + hc.rimOffsetY, world.cfg, emit)) ball.inNet = true;
+    }
+  }
 }
 
 export function stepWorld(world, dt) {

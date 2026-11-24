@@ -9,15 +9,16 @@ import { createLoop } from '../src/game/loop.js';
 // matter how the frames are chunked (30 fps, 144 fps, hitchy frames...).
 // That proves no frame-time leaks into the simulation.
 
-// [step index, x, y]: level-1 shots above rims, plus a miss into the background
+// [step index, x, y]: level-1 shots (one ball at a time, so some are refused),
+// a low landing in the net, and a miss into the background
 const SHOTS = [
-  [30, 292, 200],
-  [110, 492, 205],
-  [190, 292, 205],
-  [260, 800, 600],
-  [350, 492, 200],
-  [420, 292, 210],
-  [500, 292, 205],
+  [70, 292, 200],
+  [150, 492, 205],
+  [240, 292, 245],
+  [330, 800, 600],
+  [420, 492, 200],
+  [520, 292, 210],
+  [610, 292, 205],
 ];
 
 function play(frameSeconds) {
@@ -25,13 +26,14 @@ function play(frameSeconds) {
   const game = createGame(LEVELS, cfg);
   const shots = new Map(SHOTS.map(([s, x, y]) => [s, { x, y }]));
   const loop = createLoop(cfg, (dt, stepIndex) => {
-    if (stepIndex === 0 || stepIndex === 1) game.inputQueue.push({ type: 'click', x: 10, y: 500 }); // title, skip intro
+    // step 0: title -> preview; step 1: skip preview (freeze); step 60: start the round
+    if (stepIndex === 0 || stepIndex === 1 || stepIndex === 60) game.inputQueue.push({ type: 'click', x: 10, y: 500 });
     const s = shots.get(stepIndex);
     if (s) game.inputQueue.push({ type: 'click', ...s });
     update(game, dt);
   });
   let i = 0;
-  while (loop.stepIndex < 720) {
+  while (loop.stepIndex < 840) {
     loop.advance(typeof frameSeconds === 'function' ? frameSeconds(i++) : frameSeconds);
   }
   return {
@@ -55,14 +57,14 @@ test('identical outcome at 30, 60, 144, 240 fps and with hitchy frames', () => {
   };
   for (const [name, v] of Object.entries(variants)) {
     const trimmed = { ...v, steps: base.steps };
-    // the loop may overshoot 720 by a few steps on big frames; compare at equal steps
+    // the loop may overshoot 840 by a few steps on big frames; compare at equal steps
     if (v.steps !== base.steps) continue;
     assert.deepEqual(trimmed, base, `${name} diverged`);
   }
 });
 
 test('equal-step comparison across frame sizes (exact match)', () => {
-  // frame sizes that divide 720 steps evenly so every run stops at step 720
+  // frame sizes that divide 840 steps evenly so every run stops at step 840
   const a = play(1 / 120);
   const b = play(4 / 120);
   const c = play(3 / 120);

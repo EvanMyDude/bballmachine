@@ -1,6 +1,6 @@
 import { STAGE, CONFIG } from './config.js';
 import { LEVELS } from './levels.js';
-import { createGame, update, drainGameEvents, startLevel, needed, levelPoints } from './game/state.js';
+import { createGame, update, drainGameEvents, startLevel, beginRound, needed, levelPoints } from './game/state.js';
 import { createLoop } from './game/loop.js';
 import { hoopPose, createHoops } from './game/hoop.js';
 import { shoot, shotReady } from './game/world.js';
@@ -118,6 +118,8 @@ function toggleMute() {
 
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  // left button / first finger only: right-clicks and extra touches don't throw
+  if (e.button !== 0 || !e.isPrimary) return;
   initAudio();
   const p = toStage(e);
   rt.pointer = p;
@@ -136,7 +138,9 @@ canvas.addEventListener('pointerleave', () => {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  if (e.repeat) return; // one action per physical press (holding Space mustn't chain screens)
+  const t = e.target;
+  if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement) return;
   if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
     // continue / try again / start, depending on the screen
     e.preventDefault();
@@ -153,9 +157,9 @@ const api = {
   levelCount: LEVELS.length,
   jumpLevel(n) {
     game.score = game.phase === 'title' ? 0 : game.score;
+    game.inputQueue.length = 0; // a pending click mustn't throw into the new level
     startLevel(game, Math.max(0, Math.min(LEVELS.length - 1, n - 1)));
-    game.phase = 'playing';
-    game.phaseT = 0;
+    beginRound(game);
   },
   setTime(s) {
     game.timeLeft = s;
@@ -230,7 +234,8 @@ function render(now) {
   const world = game.world;
   const level = world.level;
   const hc = cfg.hoop;
-  const alpha = loop.alpha;
+  // frozen machine (ready to start): no interpolation, so nothing shimmers
+  const alpha = game.phase === 'ready' ? 1 : loop.alpha;
   const tr = world.t - (1 - alpha) / cfg.sim.hz;
   const playH = STAGE.PLAY_BOTTOM - STAGE.PLAY_TOP;
 
@@ -263,8 +268,9 @@ function render(now) {
     drawBoard(ctx, pose, hc, h.flash);
     drawRimBack(ctx, pose, hc);
   }
+  // a ball inside a net it has scored is drawn behind that net...
   for (const b of world.balls) {
-    if (b.phase !== 'plane') continue;
+    if (b.phase !== 'plane' || !b.inNet) continue;
     const p = ballPos(b);
     drawBall(ctx, p.x, p.y, cfg.ball.radius, b.rot);
   }
@@ -272,6 +278,12 @@ function render(now) {
     const pose = poses.get(h);
     drawNet(ctx, pose, hc, h.swish);
     drawRimFront(ctx, pose, hc);
+  }
+  // ...every other ball is in front, so a miss never looks like it went in
+  for (const b of world.balls) {
+    if (b.phase !== 'plane' || b.inNet) continue;
+    const p = ballPos(b);
+    drawBall(ctx, p.x, p.y, cfg.ball.radius, b.rot);
   }
   drawFx(ctx, fx);
   ctx.restore();
@@ -318,6 +330,7 @@ function frame(now) {
   lastRender = now;
   rt.debug.fps = lerp(rt.debug.fps, 1 / Math.max(1e-3, wallDt), 0.1);
   const dt = rt.debug.paused ? 0 : wallDt * rt.debug.timeScale;
+  if (rt.debug.paused) game.inputQueue.length = 0; // don't let clicks pile up while debug-paused
   rt.debug.stepsLast = loop.advance(dt);
   for (const e of drainGameEvents(game)) {
     fxEvent(fx, e);

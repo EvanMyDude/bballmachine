@@ -43,7 +43,7 @@ export function defaultConfig() {
       cooldown: 0, // optional extra delay after a throw (seconds)
       maxLiveBalls: 3, // only used when oneBallAtATime is false
       boardCatchMargin: 4, // px of forgiveness around a backboard's edge
-      arrivalRimGrace: 12, // landing up to this far below the rim line still counts as "above"
+      topCatchGrace: 60, // a ball landing up to this far ABOVE a board still drops in front of it
     },
 
     // A shot that lands on empty background sails behind the machine.
@@ -64,6 +64,7 @@ export function defaultConfig() {
       rimFriction: 0.08, // tangential damping on rim contact
       entryAssist: 4, // extra px on each side for the "crossed the rim inside the opening" test
       netDepth: 74,
+      netCatchDepth: 40, // a ball that LANDS up to this far below the rim, inside the net, counts
       netCentering: 900, // spring strength pulling a scored ball to the hoop centre
       netDamping: 45, // horizontal damping inside the net (~critical)
       netDrag: 2.2, // vertical slow-down inside the net
@@ -89,7 +90,7 @@ export function defaultConfig() {
 
     game: {
       levelTime: 60, // default if a level does not set its own
-      introTime: 1.5,
+      introTime: 2.4, // level preview: hoops run up to their start positions, then freeze
       levelEndTime: 3.0, // click / Space skips
       buzzerGrace: 1.6, // balls already thrown when time hits 0 may still score
       warnTime: 5, // last-seconds countdown ticks (rounds are short now)

@@ -1,8 +1,11 @@
 import { createWorld, stepWorld, drainEvents, shoot, liveBallCount } from './world.js';
+import { setHoopTime } from './hoop.js';
 import { neededFor } from './scoring.js';
 
 // Game flow (pure; no DOM). Phases:
-//   title -> intro -> playing -> buzzer -> levelEnd -> intro (next level) ...
+//   title -> intro (preview: the machine runs up to its start position)
+//         -> ready (frozen; waits for a click = a break between rounds)
+//         -> playing -> buzzer -> levelEnd -> intro (next level) ...
 //                                   \-> gameOver (retry level / start over)
 //                                   \-> victory  (after the last level)
 // As in the original, a level runs its FULL timer even after NEEDED hits 0.
@@ -39,6 +42,8 @@ export function createGame(levels, cfg, { best = 0, roundBest = {} } = {}) {
     inputQueue: [],
     events: [], // drained each frame by renderer/audio
     lastTick: null,
+    previewSteps: 0,
+    sinceInput: Infinity, // seconds since the last click / key (start guard)
   };
 }
 
@@ -50,14 +55,22 @@ export function needed(game) {
   return neededFor(game.target, levelPoints(game));
 }
 
+// The preview plays the machine from t = -introTime up to t = 0, the level's
+// real (screenshot-measured) starting arrangement, then freezes there. Every
+// attempt therefore starts from the identical state the balance sims use.
+// Whole steps are counted and the clock is snapped to exactly 0.
 export function startLevel(game, index) {
   const level = game.levels[index];
+  const cfg = game.cfg;
   game.levelIndex = index;
   game.levelStartScore = game.score;
   game.target = level.target;
-  game.levelTime = level.time ?? game.cfg.game.levelTime;
+  game.levelTime = level.time ?? cfg.game.levelTime;
   game.timeLeft = game.levelTime;
-  game.world = createWorld(level, game.cfg);
+  game.world = createWorld(level, cfg);
+  game.previewSteps = Math.max(0, Math.round(cfg.game.introTime * cfg.sim.hz));
+  game.world.t = -game.previewSteps / cfg.sim.hz;
+  for (const h of game.world.hoops) setHoopTime(h, game.world.t);
   game.phase = 'intro';
   game.phaseT = 0;
   game.lastTick = null;
@@ -83,6 +96,34 @@ function setPhase(game, phase) {
   game.phaseT = 0;
 }
 
+// Stop the preview: snap the machine to exactly its start position and wait.
+export function freeze(game) {
+  if (game.phase !== 'intro') return;
+  game.world.t = 0;
+  for (const h of game.world.hoops) setHoopTime(h, 0);
+  game.previewSteps = 0;
+  setPhase(game, 'ready');
+  game.events.push({ type: 'machineFreeze' });
+}
+
+// Start the clock. (Also used by the debug/test API to jump straight in.)
+export function beginRound(game) {
+  if (game.phase === 'intro') freeze(game);
+  if (game.phase !== 'ready') return;
+  setPhase(game, 'playing');
+  game.events.push({ type: 'roundStart', level: game.levels[game.levelIndex].id });
+}
+
+// In 'ready', only a deliberate press starts the round: not in the first
+// 0.25 s, and only after a 0.3 s gap since the previous press, so frantic
+// clicking from the buzzer through LEVEL COMPLETE can't chain into a
+// running clock.
+const READY_GUARD = 0.25;
+const QUIET_GAP = 0.3;
+function tryStart(game, gap) {
+  if (game.phaseT >= READY_GUARD && gap >= QUIET_GAP) beginRound(game);
+}
+
 // Record this round's points against the player's best for the round.
 function closeRound(game) {
   const id = game.levels[game.levelIndex].id;
@@ -103,14 +144,17 @@ function finishGame(game, phase) {
 }
 
 // Space / Enter / R on a menu screen: the obvious "keep going" action.
-export function handleKey(game) {
+export function handleKey(game, gap = Infinity) {
   switch (game.phase) {
     case 'title':
     case 'victory':
       if (game.phase === 'title' || game.phaseT > 0.6) newGame(game);
       break;
     case 'intro':
-      setPhase(game, 'playing');
+      freeze(game); // skip the preview, but don't start the clock
+      break;
+    case 'ready':
+      tryStart(game, gap);
       break;
     case 'levelEnd':
       if (game.phaseT > 0.4) startLevel(game, game.levelIndex + 1);
@@ -123,13 +167,16 @@ export function handleKey(game) {
   }
 }
 
-export function handleClick(game, x, y) {
+export function handleClick(game, x, y, gap = Infinity) {
   switch (game.phase) {
     case 'title':
       newGame(game);
       break;
     case 'intro':
-      setPhase(game, 'playing');
+      freeze(game); // skip the preview, but don't start the clock
+      break;
+    case 'ready':
+      tryStart(game, gap); // this click never throws a ball
       break;
     case 'playing':
       shoot(game.world, x, y);
@@ -164,23 +211,38 @@ function collectWorldEvents(game) {
 }
 
 export function update(game, dt) {
+  // Inputs apply at the start of a step. At most ONE phase transition per
+  // step: once an input changes the phase, the rest of this step's inputs are
+  // dropped (two clicks in one frame can't skip a screen and also throw).
   const queued = game.inputQueue;
   game.inputQueue = [];
   for (const inp of queued) {
-    if (inp.type === 'click') handleClick(game, inp.x, inp.y);
-    else if (inp.type === 'key') handleKey(game);
+    const before = game.phase;
+    const gap = game.sinceInput;
+    game.sinceInput = 0;
+    if (inp.type === 'click') handleClick(game, inp.x, inp.y, gap);
+    else if (inp.type === 'key') handleKey(game, gap);
+    if (game.phase !== before) break;
   }
+  game.sinceInput += dt;
 
   const g = game.cfg.game;
   game.phaseT += dt;
 
   switch (game.phase) {
     case 'title':
+      stepWorld(game.world, dt);
+      collectWorldEvents(game);
+      break;
+
     case 'intro':
       stepWorld(game.world, dt);
       collectWorldEvents(game);
-      if (game.phase === 'intro' && game.phaseT >= g.introTime) setPhase(game, 'playing');
+      if (--game.previewSteps <= 0) freeze(game);
       break;
+
+    case 'ready':
+      break; // frozen: the machine waits for the player
 
     case 'playing': {
       game.timeLeft = Math.max(0, game.timeLeft - dt);

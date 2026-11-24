@@ -352,21 +352,57 @@ export function drawOverlay(ctx, game, pointer, now) {
   }
 
   if (p === 'intro') {
-    const t = game.phaseT;
-    const a = t < 0.15 ? t / 0.15 : t > game.cfg.game.introTime - 0.25 ? Math.max(0, (game.cfg.game.introTime - t) / 0.25) : 1;
-    ctx.globalAlpha = a;
-    dim(ctx, 0.25);
-    ribbon(ctx, 410, 330);
-    const s = 1 + Math.max(0, 0.15 - t) * 2;
+    // Preview: the machine runs up to its start position. Keep it visible: a
+    // compact tag at the top with a bar showing how long the preview lasts.
+    const total = Math.max(0.01, game.cfg.game.introTime);
+    const left = Math.max(0, 1 - game.phaseT / total);
+    const a = Math.min(1, game.phaseT / 0.2);
     ctx.save();
-    ctx.translate(cx, 560);
-    ctx.scale(s, s);
-    shadowText(ctx, `LEVEL ${game.levelIndex + 1}`, 0, 0, 150, COLORS.yellowText, { lw: 12 });
+    ctx.globalAlpha = a;
+    const w = 560;
+    const x = cx - w / 2;
+    const y = STAGE.PLAY_TOP + 14;
+    ctx.fillStyle = 'rgba(12,8,2,0.72)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 92, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(247,148,29,0.9)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    shadowText(ctx, `LEVEL ${game.levelIndex + 1}`, cx, y + 52, 52, COLORS.yellowText, { lw: 7 });
+    shadowText(ctx, 'WATCH THE MACHINE...', cx, y + 80, 22, '#e9e3d6', { font: FONT.body, lw: 4 });
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(x + 20, y + 86, w - 40, 3);
+    ctx.fillStyle = '#f7941d';
+    ctx.fillRect(x + 20, y + 86, (w - 40) * left, 3);
     ctx.restore();
-    shadowText(ctx, `NEEDED ${game.target} IN ${game.levelTime} SECONDS`, cx, 650, 54, '#fff', { lw: 8 });
+    return;
+  }
+
+  if (p === 'ready') {
+    // Frozen at the start position: a break until the player clicks.
+    const t = game.phaseT;
+    const a = Math.min(1, t / 0.18);
+    const pop = t < 0.12 ? 1.12 - (t / 0.12) * 0.12 : 1;
+    ctx.save();
+    ctx.globalAlpha = a;
+    dim(ctx, 0.32);
+    ribbon(ctx, 380, 400, 0.72);
+    ctx.translate(cx, 0);
+    ctx.save();
+    ctx.translate(0, 500);
+    ctx.scale(pop, pop);
+    shadowText(ctx, `LEVEL ${game.levelIndex + 1}`, 0, 0, 120, COLORS.yellowText, { lw: 12 });
+    ctx.restore();
+    shadowText(ctx, `NEEDED ${game.target} IN ${game.levelTime} SECONDS`, 0, 568, 50, '#fff', { lw: 8 });
     const rb = game.roundBest[game.levels[game.levelIndex].id];
-    if (rb) shadowText(ctx, `YOUR BEST HERE: ${rb}`, cx, 708, 34, '#c9d22c', { lw: 6 });
-    ctx.globalAlpha = 1;
+    if (rb) shadowText(ctx, `YOUR BEST HERE: ${rb}`, 0, 614, 30, '#c9d22c', { lw: 5 });
+    const pulse = 0.72 + 0.28 * Math.sin(now * 5);
+    ctx.globalAlpha = a * pulse;
+    shadowText(ctx, 'CLICK TO START', 0, 700, 70, '#ff9a2e', { lw: 10 });
+    ctx.globalAlpha = a;
+    shadowText(ctx, 'or press SPACE', 0, 738, 24, '#b8ad98', { font: FONT.body, lw: 4 });
+    ctx.restore();
     return;
   }
 
