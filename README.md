@@ -107,4 +107,4 @@ tests/               node:test suites
 
 ## Deployment
 
-Every push to `main` runs `.github/workflows/pages.yml`: unit tests, then the bot balance check (`--ci`), then a deploy of `index.html`, `styles.css` and `src/` to GitHub Pages. (Repo setting: *Settings → Pages → Source: GitHub Actions*.)
+Every push to `main` runs `.github/workflows/pages.yml`: unit tests, then the bot balance check (`--ci`), then a build job and a deploy job that publish of `index.html`, `styles.css` and `src/` to GitHub Pages. (Repo setting: *Settings → Pages → Source: GitHub Actions*.)
